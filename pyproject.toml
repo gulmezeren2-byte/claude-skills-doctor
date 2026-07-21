@@ -1,0 +1,79 @@
+[project]
+name = "claude-skills-doctor"
+version = "0.1.0"
+description = "A doctor for your Claude Code agent skills: find the SKILL.md files Claude silently can't see (over the discovery budget), plus naming, routing and hygiene problems — deterministically, across every installed skill."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Mehmet Eren Gülmez" }]
+keywords = [
+    "claude",
+    "claude-code",
+    "claude-skills",
+    "agent-skills",
+    "skill",
+    "skills",
+    "skill-lint",
+    "skill-validator",
+    "skilldoctor",
+    "SKILL.md",
+    "mcp",
+    "ai-agents",
+    "linter",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Quality Assurance",
+]
+dependencies = [
+    "typer>=0.12",
+    "rich>=13.0",
+    "pyyaml>=6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/gulmezeren2-byte/claude-skills-doctor"
+Repository = "https://github.com/gulmezeren2-byte/claude-skills-doctor"
+Changelog = "https://github.com/gulmezeren2-byte/claude-skills-doctor/blob/main/CHANGELOG.md"
+
+[project.scripts]
+skilldoctor = "skilldoctor.cli:app"
+claude-skills-doctor = "skilldoctor.cli:app"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "types-pyyaml>=6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/skilldoctor"]
+
+[tool.ruff]
+line-length = 96
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# typer requires Option()/Argument() calls in parameter defaults — B008 is a
+# false positive for the CLI layer.
+"src/skilldoctor/cli.py" = ["B008"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
