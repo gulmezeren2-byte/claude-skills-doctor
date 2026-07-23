@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.2.0 — 2026-07-23
+
+- **Security signals** (new): scans every installed skill — including third-party
+  plugins, because a dangerous plugin is exactly the case worth flagging — for two
+  high-value smells, deterministically and without executing anything:
+  `hidden-instruction` (instruction-override / hide-from-user / prompt-extraction
+  phrases in the SKILL.md body or its reference files) and `script-network-call`
+  (an outbound network call inside the skill's `scripts/`). A documentation-context
+  filter keeps skills that *teach* prompt-injection safety from tripping it. This is
+  the "you installed a skill — is it safe?" check the crowded skill-linters skip.
+- **`--fix`**: shows a concrete suggested fix under each finding (fixes are also in
+  `--json`). Covers budget-exceeded, name↔folder, human-docs, reference-chain, and
+  the security findings.
+- **`reference-chain`**: flags a `references/` file that links onward to another
+  `.md`; the agent may preview nested files only partially and miss instructions.
+
 ## 0.1.0 — 2026-07-21
 
 First public release.

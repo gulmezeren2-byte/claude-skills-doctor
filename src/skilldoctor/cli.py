@@ -49,6 +49,9 @@ def main(
     strict: bool = typer.Option(
         False, "--strict", help="Exit non-zero on warnings too, not just errors."
     ),
+    fix: bool = typer.Option(
+        False, "--fix", help="Show concrete suggested fixes for each finding."
+    ),
     show_version: bool = typer.Option(False, "--version", help="Show version and exit."),
 ) -> None:
     """Run the full check (the default when no subcommand is given)."""
@@ -66,7 +69,7 @@ def main(
     if json_out:
         typer.echo(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
     else:
-        _report.render(report)
+        _report.render(report, show_fixes=fix)
         if not skills and not commands:
             Console().print(
                 "[dim]No skills or commands found. Point --project at a repo with "

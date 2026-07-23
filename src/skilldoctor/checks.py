@@ -30,6 +30,7 @@ from skilldoctor.model import (
     Skill,
     SlashCommand,
 )
+from skilldoctor.security import scan_security
 
 # --- spec limits (from the Agent Skills spec / Anthropic quick_validate) ---
 NAME_MAX = 64
@@ -119,6 +120,7 @@ def check_skill(skill: Skill, full: bool = True) -> list[Finding]:
                 Finding(
                     "name-folder-mismatch", ERROR, t,
                     f"`name: {n}` must match the folder name `{skill.folder_name}`", p,
+                    suggestion=f"Set `name: {skill.folder_name}` or rename the folder.",
                 )
             )
         if not _NAME_RE.match(n):
@@ -204,7 +206,8 @@ def check_skill(skill: Skill, full: bool = True) -> list[Finding]:
         if (skill.path.parent / doc).exists():
             out.append(
                 Finding("human-docs", WARNING, t,
-                        f"{doc} inside the skill folder — skills are for agents, not humans", p)
+                        f"{doc} inside the skill folder — skills are for agents, not humans", p,
+                        suggestion=f"Move {doc} out of the skill folder.")
             )
     return out
 
@@ -272,6 +275,36 @@ def check_collisions(skills: list[Skill]) -> list[Finding]:
     return out
 
 
+# A markdown link that points at another .md file: "](something.md)" / "...md#anchor)".
+_MD_LINK_RE = re.compile(r"\]\([^)]*\.md(?:[)#])")
+
+
+def check_reference_chain(skill: Skill) -> list[Finding]:
+    """references/ should stay one level deep. If a reference file links onward to
+    another .md, the agent may preview it only partially and miss instructions."""
+    refdir = skill.path.parent / "references"
+    if not refdir.is_dir():
+        return []
+    for md in sorted(refdir.rglob("*.md")):
+        try:
+            if md.stat().st_size > 200_000:
+                continue
+            text = md.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if _MD_LINK_RE.search(text):
+            return [
+                Finding(
+                    "reference-chain", WARNING, skill.name,
+                    f"references/{md.name} links onward to another .md — keep references "
+                    "one level deep so the agent doesn't miss nested instructions",
+                    skill.path,
+                    suggestion="Link deep files directly from SKILL.md, or inline the content.",
+                )
+            ]
+    return []
+
+
 # --------------------------------------------------------------------------- #
 # system-wide budget check
 # --------------------------------------------------------------------------- #
@@ -287,6 +320,8 @@ def check_budget(
                 f"skills + commands use ~{used}/{limit} discovery chars — over by {over}. "
                 "Claude Code silently stops listing some skills (no warning). "
                 "Trim descriptions or raise SLASH_COMMAND_TOOL_CHAR_BUDGET.",
+                suggestion="Run `skilldoctor budget` to see the biggest contributors, trim "
+                f"~{over} chars of descriptions, or set SLASH_COMMAND_TOOL_CHAR_BUDGET.",
             )
         ]
     if used >= limit * _budget.WARN_RATIO:
@@ -311,7 +346,13 @@ def check_all(
 ) -> Report:
     findings: list[Finding] = []
     for s in skills:
-        findings.extend(check_skill(s, full=(s.source != SOURCE_PLUGIN)))
+        full = s.source != SOURCE_PLUGIN
+        findings.extend(check_skill(s, full=full))
+        # security signals run on every skill — a dangerous third-party skill is
+        # exactly the case worth flagging.
+        findings.extend(scan_security(s))
+        if full:
+            findings.extend(check_reference_chain(s))
     findings.extend(check_duplicates(skills))
     # Routing collisions are only actionable among the user's own skills.
     findings.extend(check_collisions([s for s in skills if s.source != SOURCE_PLUGIN]))

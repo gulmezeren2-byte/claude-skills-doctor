@@ -1,6 +1,6 @@
 [project]
 name = "claude-skills-doctor"
-version = "0.1.0"
+version = "0.2.0"
 description = "A doctor for your Claude Code agent skills: find the SKILL.md files Claude silently can't see (over the discovery budget), plus naming, routing and hygiene problems — deterministically, across every installed skill."
 readme = "README.md"
 requires-python = ">=3.10"

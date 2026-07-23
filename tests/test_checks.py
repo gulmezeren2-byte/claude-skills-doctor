@@ -9,6 +9,7 @@ from skilldoctor.checks import (
     check_budget,
     check_collisions,
     check_duplicates,
+    check_reference_chain,
     check_skill,
 )
 from skilldoctor.model import ERROR, INFO, SOURCE_PLUGIN, WARNING, Skill
@@ -151,6 +152,21 @@ def test_budget_over_and_near() -> None:
 
     near = check_budget([make_skill("s", description="d" * 850)], [], limit=1000)
     assert near and near[0].check == "budget-near" and near[0].severity == WARNING
+
+
+def test_reference_chain(tmp_path: Path) -> None:
+    p = write_skill(tmp_path, "s", f"name: s\ndescription: {GOOD_DESC}")
+    refs = p.parent / "references"
+    refs.mkdir()
+    (refs / "a.md").write_text("See [more detail](b.md) for the rest.", "utf-8")
+    skill = load_skill(p, "user")
+    assert any(f.check == "reference-chain" for f in check_reference_chain(skill))
+
+
+def test_findings_carry_suggestions() -> None:
+    s = make_skill("pdf-tools", name="pdf", description=GOOD_DESC)
+    hit = [f for f in check_skill(s) if f.check == "name-folder-mismatch"]
+    assert hit and hit[0].suggestion and "pdf-tools" in hit[0].suggestion
 
 
 def test_check_all_coverage_counts() -> None:

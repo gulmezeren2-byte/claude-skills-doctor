@@ -33,6 +33,7 @@ Then run `skilldoctor` (the command `claude-skills-doctor` works too).
 
 ```
 skilldoctor                 # health-check every skill Claude Code can see; exits non-zero on errors
+skilldoctor --fix           # show a concrete suggested fix for each finding
 skilldoctor --json          # machine-readable, for CI
 skilldoctor --strict        # fail on warnings too
 skilldoctor budget          # the shareable view: the bar + the biggest contributors to trim
@@ -48,9 +49,10 @@ All deterministic. **No model calls, no network, no guessing** — it reads your
 - **Won't load** — invalid YAML frontmatter (which *silently* prevents loading), missing `name`/`description`, and `name` that doesn't match its folder (required, and the one Anthropic's own validator misses).
 - **Won't route** — descriptions too thin to trigger, and descriptions written as a step-by-step how-to (which makes Claude follow the summary and skip loading the body).
 - **Collisions** — two skills with the same `name`, or near-identical descriptions that compete to trigger.
-- **Contract & hygiene** — `allowed-tools` that doesn't cover the tools the body actually uses, `<`/`>` in descriptions (prompt-injection risk), oversized bodies that belong in `references/`, absolute paths, and human-facing docs (README/CHANGELOG) left inside a skill folder.
+- **Contract & hygiene** — `allowed-tools` that doesn't cover the tools the body actually uses, `<`/`>` in descriptions (prompt-injection risk), oversized bodies that belong in `references/`, reference chains more than one level deep, absolute paths, and human-facing docs (README/CHANGELOG) left inside a skill folder.
+- **Security** — scans *every* skill (third-party plugins included) for `hidden-instruction` phrases (instruction-override / hide-from-user / prompt-extraction) in the SKILL.md and its references, and `script-network-call`s inside `scripts/`. Because "I installed a skill — is it safe?" is a real question, and a documentation-context filter keeps skills that *teach* prompt-injection safety from tripping it.
 
-Errors make it exit non-zero, so it gates a pipeline: `skilldoctor && claude ...`.
+Errors make it exit non-zero, so it gates a pipeline: `skilldoctor && claude ...`. Add `--fix` to see a concrete suggested fix under each finding.
 
 ## How it's different from a skill linter
 

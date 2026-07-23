@@ -34,7 +34,7 @@ def _budget_bar(used: int, limit: int) -> Text:
     return bar
 
 
-def render(report: Report, console: Console | None = None) -> None:
+def render(report: Report, console: Console | None = None, show_fixes: bool = False) -> None:
     console = console or Console()
 
     console.print(Text("Discovery budget", style="bold"))
@@ -66,7 +66,21 @@ def render(report: Report, console: Console | None = None) -> None:
         console.print(table)
         console.print()
 
+    if show_fixes:
+        _print_fixes(report, console)
+
     _print_summary(report, console)
+
+
+def _print_fixes(report: Report, console: Console) -> None:
+    fixable = [f for f in report.sorted_findings() if f.suggestion]
+    if not fixable:
+        return
+    console.print(Text("Suggested fixes", style="bold"))
+    for f in fixable:
+        console.print(f"  [cyan]{f.target}[/cyan] · {f.check}")
+        console.print(f"    → {f.suggestion}")
+    console.print()
 
 
 def _print_summary(report: Report, console: Console) -> None:

@@ -84,6 +84,7 @@ class Finding:
     target: str
     message: str
     path: Path | None = None
+    suggestion: str | None = None  # a concrete fix, shown with --fix
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -92,6 +93,7 @@ class Finding:
             "target": self.target,
             "message": self.message,
             "path": str(self.path) if self.path else None,
+            "suggestion": self.suggestion,
         }
 
 
