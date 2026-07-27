@@ -41,7 +41,10 @@ _HIDDEN_PATTERNS: list[tuple[str, str]] = [
 
 # Outbound network / remote-exec patterns inside scripts.
 _NETWORK_PATTERNS: list[tuple[str, str]] = [
-    (r"curl\s+[^\n|]*\|\s*(ba)?sh", "pipes a remote script straight into a shell"),
+    # NB: no `\s+` before `[^\n|]*` — two quantifiers that can both eat spaces make
+    # this catastrophically backtrack on a long run of whitespace (a real ReDoS: a
+    # hostile script could hang the scanner). `[^\n|]*` already covers the spaces.
+    (r"curl[^\n|]*\|[^\n]{0,40}?(ba)?sh", "pipes a remote script straight into a shell"),
     (r"\bcurl\s+-[a-zA-Z]*\s*https?://", "curl to a remote URL"),
     (r"\bcurl\s+https?://", "curl to a remote URL"),
     (r"\bwget\s+https?://", "wget from a remote URL"),

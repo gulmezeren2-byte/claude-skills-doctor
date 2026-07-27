@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from collections.abc import Callable
 
 from skilldoctor import budget as _budget
 from skilldoctor.model import (
@@ -76,6 +77,17 @@ _ABS_PATH_RE = re.compile(r"(^|[\s(`\"'])(/(Users|home|root|opt|var|etc)/|[A-Za-
 _WORD_RE = re.compile(r"[a-z0-9]+")
 
 
+def _is_text(value: object) -> bool:
+    """True only for a non-blank string. YAML happily yields None/int/list where a
+    string was meant (`description:` with nothing after it gives None)."""
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _as_key(key: object) -> str:
+    """Render a frontmatter key for display. YAML keys are not always strings."""
+    return key if isinstance(key, str) else repr(key)
+
+
 def _tokens(text: str) -> set[str]:
     return set(_WORD_RE.findall(text.lower()))
 
@@ -104,9 +116,33 @@ def check_skill(skill: Skill, full: bool = True) -> list[Finding]:
     fm = skill.frontmatter
     if "name" not in fm:
         out.append(Finding("missing-name", ERROR, t, "frontmatter has no `name`", p))
+    elif not _is_text(fm.get("name")):
+        out.append(
+            Finding("empty-name", ERROR, t,
+                    "`name` is present but empty (or not text) — the skill can't load", p,
+                    suggestion=f"Set `name: {skill.folder_name}`.")
+        )
     if "description" not in fm:
         out.append(
             Finding("missing-description", ERROR, t, "frontmatter has no `description`", p)
+        )
+    elif not _is_text(fm.get("description")):
+        out.append(
+            Finding("empty-description", ERROR, t,
+                    "`description` is present but empty (or not text) — Claude has nothing "
+                    "to route on, so the skill can never trigger", p,
+                    suggestion="Describe what the skill does and when to use it.")
+        )
+
+    # YAML 1.1 reads bare on/off/yes/no/true/false as booleans, so `on:` becomes the
+    # key True — a classic footgun that makes a key silently not the key you wrote.
+    bool_keys = [k for k in fm if isinstance(k, bool)]
+    if bool_keys:
+        out.append(
+            Finding("yaml-truthy-key", WARNING, t,
+                    f"a frontmatter key parsed as the boolean {bool_keys[0]!r} — YAML reads "
+                    "bare on/off/yes/no/true/false as booleans, not as key names", p,
+                    suggestion='Quote the key, e.g. `"on":`, or rename it.')
         )
 
     if not full:
@@ -171,7 +207,9 @@ def check_skill(skill: Skill, full: bool = True) -> list[Finding]:
                     f"`compatibility` is {len(compat)} chars; max is {COMPATIBILITY_MAX}", p)
         )
 
-    unexpected = set(fm.keys()) - ALLOWED_FRONTMATTER
+    # Keys are whatever YAML produced — they are not guaranteed to be strings
+    # (`on:` becomes True, `1:` becomes 1), so render before sorting or joining.
+    unexpected = {_as_key(k) for k in fm} - ALLOWED_FRONTMATTER
     if unexpected:
         keys = ", ".join(sorted(unexpected))
         out.append(
@@ -338,6 +376,29 @@ def check_budget(
 # --------------------------------------------------------------------------- #
 # orchestrator
 # --------------------------------------------------------------------------- #
+def _safe(
+    skill: Skill, fn: Callable[..., list[Finding]], *args: object
+) -> list[Finding]:
+    """Run one check over one skill, converting an unexpected failure into a finding.
+
+    One odd skill on disk must never take down the whole report — the other 30 skills
+    still deserve their answer, and a traceback would also break the `--json` contract.
+    """
+    try:
+        return fn(skill, *args)
+    except Exception as exc:  # noqa: BLE001 - deliberate last-resort guard
+        return [
+            Finding(
+                "internal-error", WARNING, skill.name,
+                f"skilldoctor could not finish checking this skill: "
+                f"{type(exc).__name__}: {exc}",
+                skill.path,
+                suggestion="Please report this at "
+                "https://github.com/gulmezeren2-byte/claude-skills-doctor/issues",
+            )
+        ]
+
+
 def check_all(
     skills: list[Skill],
     commands: list[SlashCommand],
@@ -347,12 +408,12 @@ def check_all(
     findings: list[Finding] = []
     for s in skills:
         full = s.source != SOURCE_PLUGIN
-        findings.extend(check_skill(s, full=full))
+        findings.extend(_safe(s, check_skill, full))
         # security signals run on every skill — a dangerous third-party skill is
         # exactly the case worth flagging.
-        findings.extend(scan_security(s))
+        findings.extend(_safe(s, scan_security))
         if full:
-            findings.extend(check_reference_chain(s))
+            findings.extend(_safe(s, check_reference_chain))
     findings.extend(check_duplicates(skills))
     # Routing collisions are only actionable among the user's own skills.
     findings.extend(check_collisions([s for s in skills if s.source != SOURCE_PLUGIN]))

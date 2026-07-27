@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.3.0 — 2026-07-27
+
+Hardening pass: an adversarial bug hunt against hostile-but-plausible skills found
+three real defects, all fixed here, plus two silent false negatives.
+
+**Fixed**
+
+- **Crash on a YAML-truthy frontmatter key.** `on:` (also `yes:`, `no:`, `true:`)
+  is read by YAML 1.1 as the *boolean* `True`, so the frontmatter mapping had a
+  non-string key — rendering it raised `TypeError` and killed the whole run. Worse,
+  under `--json` this printed a traceback and emitted **no JSON at all**, silently
+  breaking any CI step parsing the output. Such keys are now rendered safely and
+  reported as a new `yaml-truthy-key` warning that explains the footgun.
+- **ReDoS in the security scanner.** The `curl … | sh` pattern had two quantifiers
+  competing for the same run of whitespace and took **~9.6 s** on a hostile script
+  (a skill could hang the very tool auditing it). Rewritten to be linear: the same
+  input now takes ~13 ms, and detection is unchanged.
+- **One bad skill could sink the whole report.** Each skill's checks are now
+  isolated; an unexpected failure becomes an `internal-error` finding for that skill
+  and the other skills still get their answer. `--json` now *always* emits valid
+  JSON — even on catastrophic failure it returns `{"ok": false, "error": …}` rather
+  than a traceback.
+
+**New checks** (both were silently passing before)
+
+- `empty-description` — a `description:` with nothing after it parses as `None`, so
+  the key exists but Claude has nothing to route on and the skill can never trigger.
+- `empty-name` — same shape for `name:`.
+
 ## 0.2.0 — 2026-07-23
 
 - **Security signals** (new): scans every installed skill — including third-party

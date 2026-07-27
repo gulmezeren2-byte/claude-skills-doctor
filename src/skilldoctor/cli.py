@@ -62,9 +62,18 @@ def main(
         return
 
     project = project or Path.cwd()
-    skills = discover_skills(home=home, project_root=project)
-    commands = discover_commands(home=home, project_root=project)
-    report = check_all(skills, commands, _limit(budget_override))
+    try:
+        skills = discover_skills(home=home, project_root=project)
+        commands = discover_commands(home=home, project_root=project)
+        report = check_all(skills, commands, _limit(budget_override))
+    except Exception as exc:  # noqa: BLE001 - last resort: never dump a traceback
+        # A consumer piping --json into a parser must always get JSON back, even
+        # when something on disk defeats us.
+        if json_out:
+            typer.echo(json.dumps({"ok": False, "error": f"{type(exc).__name__}: {exc}"}))
+        else:
+            Console(stderr=True).print(f"[red]skilldoctor failed:[/red] {exc}")
+        raise typer.Exit(1) from exc
 
     if json_out:
         typer.echo(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
