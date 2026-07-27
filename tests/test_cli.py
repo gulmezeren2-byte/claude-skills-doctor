@@ -47,6 +47,42 @@ def test_strict_fails_on_warning(home: Path, project: Path) -> None:
     assert runner.invoke(app, _args(home, project, "--strict")).exit_code == 1
 
 
+def test_our_own_shipped_skill_passes_our_own_checks(tmp_path: Path) -> None:
+    """Dogfood, enforced: the skill this project ships must survive --strict.
+
+    If we ship a skill that our own tool flags, the tool is not credible. This runs
+    against the real `skills/` folder in the repo, so it fails the build if that
+    ever stops being true."""
+    shipped = Path(__file__).resolve().parents[1] / "skills"
+    assert shipped.is_dir(), "the repo should ship a skills/ folder"
+    result = runner.invoke(
+        app,
+        [
+            "--home", str(tmp_path / "nohome"),
+            "--project", str(tmp_path / "noproject"),
+            "--skills", str(shipped),
+            "--strict",
+        ],
+    )
+    assert result.exit_code == 0, result.stdout
+
+
+def test_skills_flag_is_repeatable(tmp_path: Path) -> None:
+    for name in ("one", "two"):
+        d = tmp_path / name / "s"
+        d.mkdir(parents=True)
+        (d / "SKILL.md").write_text(f"---\nname: s\ndescription: {GOOD}\n---\nbody", "utf-8")
+    result = runner.invoke(
+        app,
+        ["--home", str(tmp_path / "nohome"), "--project", str(tmp_path / "nope"),
+         "--skills", str(tmp_path / "one"), "--skills", str(tmp_path / "two"), "--json"],
+    )
+    data = json.loads(result.stdout)
+    assert data["counts"]["skills"] == 2
+    # two skills both named `s` — the duplicate must be caught
+    assert "duplicate-name" in {f["check"] for f in data["findings"]}
+
+
 def test_version() -> None:
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0

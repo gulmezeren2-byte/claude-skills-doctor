@@ -42,6 +42,10 @@ def main(
     home: Path | None = typer.Option(
         None, "--home", help="Override the home dir (~/.claude). Mainly for testing."
     ),
+    skills: list[Path] = typer.Option(
+        [], "--skills", help="Also check this skills/ directory (repeatable). For "
+        "skill and plugin authors: lint the skills you ship, in CI.",
+    ),
     json_out: bool = typer.Option(False, "--json", help="Emit the report as JSON."),
     budget_override: int | None = typer.Option(
         None, "--budget", help="Override the discovery-char budget (default 15000 / env)."
@@ -63,9 +67,9 @@ def main(
 
     project = project or Path.cwd()
     try:
-        skills = discover_skills(home=home, project_root=project)
+        found = discover_skills(home=home, project_root=project, extra_dirs=skills)
         commands = discover_commands(home=home, project_root=project)
-        report = check_all(skills, commands, _limit(budget_override))
+        report = check_all(found, commands, _limit(budget_override))
     except Exception as exc:  # noqa: BLE001 - last resort: never dump a traceback
         # A consumer piping --json into a parser must always get JSON back, even
         # when something on disk defeats us.
@@ -79,7 +83,7 @@ def main(
         typer.echo(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
     else:
         _report.render(report, show_fixes=fix)
-        if not skills and not commands:
+        if not found and not commands:
             Console().print(
                 "[dim]No skills or commands found. Point --project at a repo with "
                 ".claude/skills, or check your ~/.claude.[/dim]"
@@ -93,13 +97,16 @@ def main(
 def budget(
     project: Path | None = typer.Option(None, "--project", "-p"),
     home: Path | None = typer.Option(None, "--home"),
+    skills_dirs: list[Path] = typer.Option(
+        [], "--skills", help="Also count this skills/ directory (repeatable)."
+    ),
     top: int = typer.Option(15, "--top", help="How many biggest contributors to list."),
     budget_override: int | None = typer.Option(None, "--budget"),
 ) -> None:
     """Show the discovery budget and the biggest contributors to it."""
     console = Console()
     project = project or Path.cwd()
-    skills = discover_skills(home=home, project_root=project)
+    skills = discover_skills(home=home, project_root=project, extra_dirs=skills_dirs)
     commands = discover_commands(home=home, project_root=project)
     limit = _limit(budget_override)
     used = _budget.total_discovery_cost(skills, commands)

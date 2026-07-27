@@ -13,9 +13,17 @@ too — they count toward the budget even though skilldoctor lints skills in dep
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
 
-from skilldoctor.model import SOURCE_PLUGIN, SOURCE_PROJECT, SOURCE_USER, Skill, SlashCommand
+from skilldoctor.model import (
+    SOURCE_EXPLICIT,
+    SOURCE_PLUGIN,
+    SOURCE_PROJECT,
+    SOURCE_USER,
+    Skill,
+    SlashCommand,
+)
 from skilldoctor.parse import load_skill, split_frontmatter
 from skilldoctor.parse import parse_frontmatter as _parse_fm
 
@@ -25,10 +33,17 @@ def _default_home() -> Path:
 
 
 def discover_skills(
-    home: Path | None = None, project_root: Path | None = None
+    home: Path | None = None,
+    project_root: Path | None = None,
+    extra_dirs: Sequence[Path] | None = None,
 ) -> list[Skill]:
     """All skills, de-duplicated by resolved path (so project == home doesn't
-    double-count). Order: user, then project, then plugins."""
+    double-count). Order: explicit `--skills` dirs, then user, project, plugins.
+
+    `extra_dirs` are skills roots you name yourself — a plugin repo's `skills/`
+    folder, say. They are checked first and in full, because they are the ones you
+    are authoring: a skill author wants them linted in CI before publishing, which
+    is not something the ~/.claude locations can express."""
     home = home or _default_home()
     project_root = project_root or Path.cwd()
 
@@ -44,6 +59,16 @@ def discover_skills(
             return
         seen.add(key)
         found.append(load_skill(path, source))
+
+    for extra in extra_dirs or ():
+        extra = Path(extra)
+        # Tolerant: accept either a skills root (skills/<name>/SKILL.md) or a single
+        # skill folder pointed at directly.
+        if (extra / "SKILL.md").is_file():
+            add(extra / "SKILL.md", SOURCE_EXPLICIT)
+        elif extra.is_dir():
+            for p in sorted(extra.glob("*/SKILL.md")):
+                add(p, SOURCE_EXPLICIT)
 
     user_dir = home / ".claude" / "skills"
     if user_dir.is_dir():

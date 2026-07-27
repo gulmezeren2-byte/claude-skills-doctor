@@ -1,0 +1,13 @@
+{
+  "name": "skilldoctor",
+  "version": "0.4.0",
+  "description": "Diagnose your installed Claude Code skills. Use when a skill never triggers, when you want to audit or debug your skills, or when you want to know whether a skill you installed is safe to trust.",
+  "author": {
+    "name": "Mehmet Eren Gülmez",
+    "url": "https://github.com/gulmezeren2-byte"
+  },
+  "homepage": "https://github.com/gulmezeren2-byte/claude-skills-doctor",
+  "repository": "https://github.com/gulmezeren2-byte/claude-skills-doctor",
+  "license": "MIT",
+  "keywords": ["skills", "diagnostics", "linter", "budget", "security"]
+}

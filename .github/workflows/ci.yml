@@ -21,3 +21,8 @@ jobs:
         run: uv run ruff check src tests
       - name: Types
         run: uv run mypy src
+
+      # Dogfood: the skill this project ships must pass its own checks, warnings
+      # included. This doubles as the example of using skilldoctor in CI.
+      - name: Check our own shipped skill
+        run: uv run skilldoctor --skills ./skills --strict

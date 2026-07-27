@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.0 — 2026-07-27
+
+Now usable from *inside* Claude Code, and usable by skill authors.
+
+- **`--skills PATH`** (repeatable): check a `skills/` directory you are authoring —
+  a plugin repo's, say — instead of only the installed `~/.claude` and `.claude`
+  locations. This is the flag skill and plugin authors need to lint what they ship
+  before publishing it, in CI. Accepts either a skills root (`skills/<name>/SKILL.md`)
+  or a single skill folder. Named directories are linted in full, since they're yours.
+- **Ships as a Claude Code plugin.** `.claude-plugin/marketplace.json` +
+  `.claude-plugin/plugin.json` and a `skilldoctor` skill, so the diagnosis is available
+  where the problem actually appears: ask Claude why a skill isn't firing and it can
+  check. The skill teaches the CLI, tells Claude to read the budget line first, and
+  forbids editing skills the user didn't author without showing them the finding.
+- **One entry, on purpose.** The plugin ships a single skill and no slash command —
+  a tool that measures the discovery budget shouldn't take two slots out of it.
+- Dogfood is enforced: CI runs `skilldoctor --skills ./skills --strict` against the
+  skill this repo ships, and a test asserts it, so shipping a skill our own tool
+  would flag fails the build.
+
 ## 0.3.0 — 2026-07-27
 
 Hardening pass: an adversarial bug hunt against hostile-but-plausible skills found

@@ -26,6 +26,7 @@ _SEVERITY_ORDER = {ERROR: 0, WARNING: 1, INFO: 2}
 SOURCE_USER = "user"  # ~/.claude/skills
 SOURCE_PROJECT = "project"  # <cwd>/.claude/skills
 SOURCE_PLUGIN = "plugin"  # ~/.claude/plugins/.../skills
+SOURCE_EXPLICIT = "explicit"  # a --skills path: a skills/ dir you are authoring
 
 
 @dataclass

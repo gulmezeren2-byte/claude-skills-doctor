@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from skilldoctor.checks import check_all
 from skilldoctor.discover import discover_commands, discover_skills
-from skilldoctor.model import SOURCE_PLUGIN, SOURCE_PROJECT, SOURCE_USER
+from skilldoctor.model import SOURCE_EXPLICIT, SOURCE_PLUGIN, SOURCE_PROJECT, SOURCE_USER
 from tests.helpers import write_command, write_skill
 
 
@@ -45,6 +46,43 @@ def test_discovers_commands(home: Path, project: Path) -> None:
     assert greet.description == "say hello to the user"
     build = next(c for c in cmds if c.name == "build")
     assert build.description == "Compile the project now"  # first non-heading line
+
+
+def test_extra_dirs_finds_a_skills_root(tmp_path: Path, home: Path, project: Path) -> None:
+    # a plugin repo's skills/ folder — the case ~/.claude paths can't express
+    d = tmp_path / "skills" / "mine"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text(
+        "---\nname: mine\ndescription: a shipped skill\n---\nbody", "utf-8"
+    )
+    found = discover_skills(
+        home=home, project_root=project, extra_dirs=[tmp_path / "skills"]
+    )
+    assert [s.name for s in found] == ["mine"]
+    assert found[0].source == SOURCE_EXPLICIT
+
+
+def test_extra_dirs_accepts_one_skill_folder(tmp_path: Path, home: Path, project: Path) -> None:
+    d = tmp_path / "just-one"
+    d.mkdir()
+    (d / "SKILL.md").write_text(
+        "---\nname: just-one\ndescription: one skill\n---\nbody", "utf-8"
+    )
+    found = discover_skills(home=home, project_root=project, extra_dirs=[d])
+    assert [s.name for s in found] == ["just-one"]
+
+
+def test_extra_dirs_are_linted_in_full(tmp_path: Path, home: Path, project: Path) -> None:
+    # explicit skills are yours, so they get the full lint (unlike plugin skills)
+    d = tmp_path / "skills" / "folder-name"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text(
+        "---\nname: different\ndescription: a name that does not match its folder\n---\nb",
+        "utf-8",
+    )
+    found = discover_skills(home=home, project_root=project, extra_dirs=[tmp_path / "skills"])
+    report = check_all(found, [], 15000)
+    assert "name-folder-mismatch" in {f.check for f in report.findings}
 
 
 def test_empty_when_nothing_present(home: Path, project: Path) -> None:

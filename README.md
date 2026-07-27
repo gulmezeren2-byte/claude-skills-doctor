@@ -41,6 +41,27 @@ skilldoctor budget          # the shareable view: the bar + the biggest contribu
 
 It scans everywhere Claude Code loads from — your user skills (`~/.claude/skills`), the project's (`.claude/skills`), and installed plugins — plus slash-commands, which share the same budget.
 
+## Or ask Claude
+
+It also ships as a Claude Code plugin, so the diagnosis lives where the problem shows up — you notice a skill isn't firing, you ask, and Claude checks:
+
+```
+/plugin marketplace add gulmezeren2-byte/claude-skills-doctor
+/plugin install skilldoctor@skilldoctor
+```
+
+The plugin ships **one** skill and no slash command. A tool that measures the discovery budget shouldn't take two slots out of it.
+
+## Authoring skills? Lint what you ship
+
+`--skills` points at a `skills/` directory you're writing, so you can catch problems before publishing rather than after someone installs them:
+
+```
+skilldoctor --skills ./skills --strict        # fails on warnings too — good CI gate
+```
+
+This repo does exactly that to itself: CI runs `skilldoctor --skills ./skills --strict` against the skill it ships, and a test asserts it. If our own tool would flag our own skill, the build fails.
+
 ## What it checks
 
 All deterministic. **No model calls, no network, no guessing** — it reads your files and reports.

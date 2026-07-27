@@ -1,0 +1,22 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "skilldoctor",
+  "description": "Diagnostics for Claude Code skills: the discovery-budget cliff that silently hides them, plus loading, routing, collision and security problems.",
+  "owner": {
+    "name": "Mehmet Eren Gülmez",
+    "url": "https://github.com/gulmezeren2-byte"
+  },
+  "plugins": [
+    {
+      "name": "skilldoctor",
+      "description": "Diagnose your installed Claude Code skills. Use when a skill never triggers, when you want to audit or debug your skills, or when you want to know whether a skill you installed is safe to trust.",
+      "version": "0.4.0",
+      "author": {
+        "name": "Mehmet Eren Gülmez",
+        "url": "https://github.com/gulmezeren2-byte"
+      },
+      "source": "./",
+      "category": "development"
+    }
+  ]
+}
