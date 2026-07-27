@@ -96,6 +96,45 @@ def test_json_stays_valid_on_hostile_skill(tmp_path: Path) -> None:
     json.loads(result.stdout)  # must parse
 
 
+class _FakeStream:
+    """A stdout stand-in with a legacy encoding and no reconfigure()."""
+
+    encoding = "cp1252"
+
+    def write(self, text: str) -> int:  # pragma: no cover - not exercised
+        return len(text)
+
+
+def test_glyphs_fall_back_when_stream_cannot_encode(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    # On Windows a piped stdout gets the legacy code page; printing a block char
+    # there used to raise UnicodeEncodeError and kill the run.
+    from skilldoctor import report as report_mod
+
+    monkeypatch.setattr("sys.stdout", _FakeStream())
+    g = report_mod.glyphs()
+    assert g["full"] == "#"
+    for value in g.values():
+        value.encode("cp1252")  # must be representable
+
+
+def test_glyphs_are_fancy_on_utf8(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from skilldoctor import report as report_mod
+
+    class Utf8Stream(_FakeStream):
+        encoding = "utf-8"
+
+    monkeypatch.setattr("sys.stdout", Utf8Stream())
+    assert report_mod.glyphs()["full"] == "█"
+
+
+def test_utf8_guard_survives_a_stream_without_reconfigure(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    from skilldoctor import cli as cli_mod
+
+    monkeypatch.setattr("sys.stdout", _FakeStream())
+    monkeypatch.setattr("sys.stderr", _FakeStream())
+    cli_mod._use_utf8_output()  # must not raise
+
+
 def test_missing_project_dir_is_clean(tmp_path: Path) -> None:
     result = runner.invoke(
         app,

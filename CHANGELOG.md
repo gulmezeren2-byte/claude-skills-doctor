@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.1 — 2026-07-27
+
+- **Fixed a crash on Windows when output is piped.** On Windows a piped stdout gets
+  the legacy code page (cp1252 and friends), not UTF-8 — so the block character in the
+  budget bar raised `UnicodeEncodeError` and took the whole run down. `skilldoctor | jq`
+  or a CI log capture would just fail. Any non-ASCII in a finding hit the same wall: a
+  skill named `ölçü`, or an em dash in a message. Output streams are now asked for UTF-8,
+  and if a stream refuses, the report falls back to ASCII drawing characters rather than
+  crashing. Found by installing the published build and piping it, which is the only way
+  this shows up — running it straight to a terminal works fine.
+
 ## 0.4.0 — 2026-07-27
 
 Now usable from *inside* Claude Code, and usable by skill authors.

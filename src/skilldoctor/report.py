@@ -7,6 +7,8 @@ JSON is produced from Report.to_dict() in the CLI; this module is the human view
 
 from __future__ import annotations
 
+import sys
+
 from rich.console import Console
 from rich.table import Table
 from rich.text import Text
@@ -16,6 +18,22 @@ from skilldoctor.model import ERROR, INFO, WARNING, Report
 _SEVERITY_STYLE = {ERROR: "bold red", WARNING: "yellow", INFO: "dim cyan"}
 _SEVERITY_LABEL = {ERROR: "error", WARNING: "warn", INFO: "info"}
 _BAR_WIDTH = 32
+
+# Glyphs used in the report. On Windows, a piped stdout gets the legacy code page
+# (cp1252 and friends) rather than UTF-8, and printing a block character there raises
+# UnicodeEncodeError — so `skilldoctor | some-parser` would crash outright. Pick the
+# drawing characters the actual stream can encode.
+_FANCY = {"full": "█", "empty": "░", "warn": "⚠", "arrow": "→", "sep": "·", "dots": "…"}
+_PLAIN = {"full": "#", "empty": ".", "warn": "!", "arrow": "->", "sep": "|", "dots": "..."}
+
+
+def glyphs() -> dict[str, str]:
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+    try:
+        "".join(_FANCY.values()).encode(encoding)
+    except (UnicodeEncodeError, LookupError):
+        return _PLAIN
+    return _FANCY
 
 
 def _budget_bar(used: int, limit: int) -> Text:
@@ -27,9 +45,10 @@ def _budget_bar(used: int, limit: int) -> Text:
         color = "yellow"
     else:
         color = "green"
+    g = glyphs()
     bar = Text()
-    bar.append("█" * filled, style=color)
-    bar.append("░" * (_BAR_WIDTH - filled), style="dim")
+    bar.append(g["full"] * filled, style=color)
+    bar.append(g["empty"] * (_BAR_WIDTH - filled), style="dim")
     bar.append(f"  {used:,} / {limit:,} chars ({int(ratio * 100)}%)", style=color)
     return bar
 
@@ -42,7 +61,8 @@ def render(report: Report, console: Console | None = None, show_fixes: bool = Fa
     if report.over_budget:
         console.print(
             Text(
-                "  ⚠ over budget — Claude Code silently drops skills past this line",
+                f"  {glyphs()['warn']} over budget - Claude Code silently drops skills "
+                "past this line",
                 style="red",
             )
         )
@@ -76,10 +96,11 @@ def _print_fixes(report: Report, console: Console) -> None:
     fixable = [f for f in report.sorted_findings() if f.suggestion]
     if not fixable:
         return
+    arrow = glyphs()["arrow"]
     console.print(Text("Suggested fixes", style="bold"))
     for f in fixable:
-        console.print(f"  [cyan]{f.target}[/cyan] · {f.check}")
-        console.print(f"    → {f.suggestion}")
+        console.print(f"  [cyan]{f.target}[/cyan]  {f.check}")
+        console.print(f"    {arrow} {f.suggestion}")
     console.print()
 
 
@@ -94,4 +115,4 @@ def _print_summary(report: Report, console: Console) -> None:
         parts.append(f"[yellow]{report.warnings} warning(s)[/yellow]")
     if report.ok and not report.warnings:
         parts.append("[green]all clear[/green]")
-    console.print(" · ".join(parts))
+    console.print(f" {glyphs()['sep']} ".join(parts))

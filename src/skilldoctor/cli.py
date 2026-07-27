@@ -7,7 +7,9 @@ biggest contributors, so you can see exactly what to trim.
 
 from __future__ import annotations
 
+import contextlib
 import json
+import sys
 from pathlib import Path
 
 import typer
@@ -25,6 +27,21 @@ app = typer.Typer(
     help="A doctor for your Claude agent skills — find the ones Claude silently can't see.",
     no_args_is_help=False,
 )
+
+
+def _use_utf8_output() -> None:
+    """Make stdout/stderr able to carry non-ASCII.
+
+    Findings quote whatever is on disk — a skill named `ölçü`, an em dash in a
+    message — and on Windows a *piped* stdout gets the legacy code page, where that
+    raises UnicodeEncodeError and takes the whole run down. `skilldoctor | jq` must
+    not crash, so ask for UTF-8 and never fail if the stream won't take it."""
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is None:
+            continue
+        with contextlib.suppress(OSError, ValueError):
+            reconfigure(encoding="utf-8", errors="replace")
 
 
 def _limit(override: int | None) -> int:
@@ -59,6 +76,7 @@ def main(
     show_version: bool = typer.Option(False, "--version", help="Show version and exit."),
 ) -> None:
     """Run the full check (the default when no subcommand is given)."""
+    _use_utf8_output()
     if show_version:
         typer.echo(f"skilldoctor {__version__}")
         raise typer.Exit()
@@ -104,6 +122,7 @@ def budget(
     budget_override: int | None = typer.Option(None, "--budget"),
 ) -> None:
     """Show the discovery budget and the biggest contributors to it."""
+    _use_utf8_output()
     console = Console()
     project = project or Path.cwd()
     skills = discover_skills(home=home, project_root=project, extra_dirs=skills_dirs)
@@ -127,7 +146,7 @@ def budget(
         table.add_row(str(cost), kind, name)
     console.print(table)
     if len(items) > top:
-        console.print(f"[dim]… and {len(items) - top} more[/dim]")
+        console.print(f"[dim]{_report.glyphs()['dots']} and {len(items) - top} more[/dim]")
 
     raise typer.Exit(1 if used > limit else 0)
 
