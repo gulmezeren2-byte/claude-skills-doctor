@@ -62,6 +62,17 @@ skilldoctor --skills ./skills --strict        # fails on warnings too — good C
 
 This repo does exactly that to itself: CI runs `skilldoctor --skills ./skills --strict` against the skill it ships, and a test asserts it. If our own tool would flag our own skill, the build fails.
 
+### In GitHub Actions
+
+```yaml
+- uses: gulmezeren2-byte/claude-skills-doctor@v1
+  with:
+    skills: ./skills     # omit to check the repo's .claude/skills
+    strict: true         # fail on warnings too
+```
+
+Nothing to install — the action fetches the tool for you. Set `json: true` and the report comes back as a parseable `report` output; the step still fails the job when there are errors, so the exit code stays the gate and the JSON is just data. `budget` and `version` are there when you need to pin either.
+
 ## What it checks
 
 All deterministic. **No model calls, no network, no guessing** — it reads your files and reports.

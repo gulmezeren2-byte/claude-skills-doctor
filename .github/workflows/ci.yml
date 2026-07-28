@@ -26,3 +26,26 @@ jobs:
       # included. This doubles as the example of using skilldoctor in CI.
       - name: Check our own shipped skill
         run: uv run skilldoctor --skills ./skills --strict
+
+  # The action is the thing most people will actually use, so run it the way they
+  # will — against the skill this repo ships. If the action breaks, CI says so.
+  action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check shipped skills with the action
+        uses: ./
+        with:
+          skills: ./skills
+          strict: true
+
+      - name: JSON mode exposes a parseable report
+        id: report
+        uses: ./
+        with:
+          skills: ./skills
+          json: true
+
+      - name: The report output is valid JSON
+        run: echo '${{ steps.report.outputs.report }}' | python -c "import json,sys; print('skills:', json.load(sys.stdin)['counts']['skills'])"

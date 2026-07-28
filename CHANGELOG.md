@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.5.0 — 2026-07-28
+
+- **Ships a GitHub Action.** Checking your skills in CI is now three lines and
+  needs no Python setup — the action fetches the tool itself:
+
+  ```yaml
+  - uses: gulmezeren2-byte/claude-skills-doctor@v1
+    with:
+      skills: ./skills
+      strict: true
+  ```
+
+  Inputs: `skills`, `project`, `strict`, `budget`, `version`, `json`. With
+  `json: true` the report comes back as a parseable `report` output while the step
+  still fails the job on errors — the exit code stays the gate, the JSON is data.
+- The action is dogfooded: CI runs it against the skill this repo ships, in both
+  table and JSON modes, so a broken action fails the build rather than a user's.
+
 ## 0.4.1 — 2026-07-27
 
 - **Fixed a crash on Windows when output is piped.** On Windows a piped stdout gets

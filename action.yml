@@ -1,0 +1,95 @@
+name: "Claude Skills Doctor"
+description: >-
+  Health-check Claude Code agent skills in CI: the discovery-char budget that
+  silently hides skills, plus frontmatter, naming, routing, collision and
+  security problems. Deterministic — no model calls, no network.
+author: "Mehmet Eren Gülmez"
+
+branding:
+  icon: activity
+  color: blue
+
+inputs:
+  skills:
+    description: >-
+      A skills/ directory to check — use this when you are authoring the skills
+      the repo ships. Accepts a skills root (skills/<name>/SKILL.md) or a single
+      skill folder. Leave empty to check the repo's .claude/skills instead.
+    required: false
+    default: ""
+  project:
+    description: "Project root to scan for .claude/skills. Defaults to the workspace."
+    required: false
+    default: ""
+  strict:
+    description: "Fail the job on warnings too, not just errors."
+    required: false
+    default: "false"
+  budget:
+    description: >-
+      Override the discovery-char budget. Defaults to 15000, matching Claude
+      Code's own default (SLASH_COMMAND_TOOL_CHAR_BUDGET).
+    required: false
+    default: ""
+  version:
+    description: "Version of claude-skills-doctor to run, e.g. 0.5.0. Defaults to latest."
+    required: false
+    default: ""
+  json:
+    description: "Emit the report as JSON instead of the human-readable table."
+    required: false
+    default: "false"
+
+outputs:
+  report:
+    description: "The JSON report (only populated when `json` is true)."
+    value: ${{ steps.run.outputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Run skilldoctor
+      id: run
+      shell: bash
+      env:
+        IN_SKILLS: ${{ inputs.skills }}
+        IN_PROJECT: ${{ inputs.project }}
+        IN_STRICT: ${{ inputs.strict }}
+        IN_BUDGET: ${{ inputs.budget }}
+        IN_VERSION: ${{ inputs.version }}
+        IN_JSON: ${{ inputs.json }}
+      run: |
+        set -euo pipefail
+
+        package="claude-skills-doctor"
+        if [ -n "$IN_VERSION" ]; then
+          package="claude-skills-doctor==$IN_VERSION"
+        fi
+
+        args=()
+        [ -n "$IN_SKILLS" ] && args+=(--skills "$IN_SKILLS")
+        [ -n "$IN_PROJECT" ] && args+=(--project "$IN_PROJECT")
+        [ -n "$IN_BUDGET" ] && args+=(--budget "$IN_BUDGET")
+        [ "$IN_STRICT" = "true" ] && args+=(--strict)
+
+        if [ "$IN_JSON" = "true" ]; then
+          args+=(--json)
+          # Capture the report for the `report` output while still failing the
+          # job on a non-zero exit — the exit code is the gate, the JSON is data.
+          set +e
+          out="$(uvx --from "$package" skilldoctor "${args[@]}")"
+          status=$?
+          set -e
+          printf '%s\n' "$out"
+          {
+            echo "report<<SKILLDOCTOR_EOF"
+            printf '%s\n' "$out"
+            echo "SKILLDOCTOR_EOF"
+          } >> "$GITHUB_OUTPUT"
+          exit $status
+        fi
+
+        uvx --from "$package" skilldoctor "${args[@]}"
