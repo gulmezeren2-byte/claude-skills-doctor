@@ -9,7 +9,10 @@ name: Release
 
 on:
   push:
-    tags: ["v*"]
+    # Version tags only. The moving `v1` tag that GitHub Actions users pin to
+    # also starts with `v`, and must not try to publish an already-published
+    # version to PyPI.
+    tags: ["v*.*.*"]
 
 jobs:
   publish:
