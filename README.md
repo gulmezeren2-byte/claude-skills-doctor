@@ -73,6 +73,18 @@ This repo does exactly that to itself: CI runs `skilldoctor --skills ./skills --
 
 Nothing to install — the action fetches the tool for you. Set `json: true` and the report comes back as a parseable `report` output; the step still fails the job when there are errors, so the exit code stays the gate and the JSON is just data. `budget` and `version` are there when you need to pin either.
 
+**What it does in your CI:** installs `uv`, downloads this package from PyPI, reads your skill files, prints a report, exits. It reads no secrets, writes nothing to your repo, sends no telemetry, and makes no network calls beyond installing itself.
+
+**If you want it fully deterministic**, pin both halves — the action by commit and the tool by version:
+
+```yaml
+- uses: gulmezeren2-byte/claude-skills-doctor@<commit-sha>
+  with:
+    version: "0.5.0"
+```
+
+`@v1` is a moving tag, and without `version` the tool resolves to the latest release, so an unpinned setup follows upstream. That's the usual trade-off: pinned is reproducible, unpinned gets fixes. The action pins its own dependency (`setup-uv`) by commit for the same reason. Releases are published to PyPI from CI with Trusted Publishing (OIDC) and carry attestations — there's no long-lived token to steal.
+
 ## What it checks
 
 All deterministic. **No model calls, no network, no guessing** — it reads your files and reports.

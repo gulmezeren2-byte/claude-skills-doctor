@@ -49,7 +49,10 @@ runs:
   using: composite
   steps:
     - name: Install uv
-      uses: astral-sh/setup-uv@v5
+      # Pinned to a commit, not a moving tag: this action runs inside other
+      # people's CI, so a compromised upstream tag would reach their secrets
+      # through us. Bump deliberately.
+      uses: astral-sh/setup-uv@e58605a9b6da7c637471fab8847a5e5a6b8df081 # v5
 
     - name: Run skilldoctor
       id: run
