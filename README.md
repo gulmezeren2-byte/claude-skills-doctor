@@ -106,6 +106,12 @@ There are per-file `SKILL.md` linters and validators (and Anthropic's `skill-cre
 
 The budget is measured as each skill/command's `name` + `description` characters. That's an estimate — the real budget adds minor per-entry formatting — so treat it as *close, and on the safe side*, not byte-exact. It lints *your own* skills fully; third-party plugin skills count toward the budget but are checked only for load-breakers, so it never nags about skills you can't fix. Every finding points at a file and a reason; nothing is invented.
 
+## Related
+
+- **[mcp-contract](https://github.com/gulmezeren2-byte/mcp-contract)** — the same idea one layer down. `skilldoctor` watches the skills an agent can *see* — are they under the discovery budget, do their descriptions collide? `mcp-contract` watches the tools it *calls* — did a change to a server's tool surface quietly break the callers? Both treat the text an agent routes on as a contract worth testing.
+
+More tools by [Eren Gülmez](https://github.com/gulmezeren2-byte?tab=repositories).
+
 ## License
 
 MIT
