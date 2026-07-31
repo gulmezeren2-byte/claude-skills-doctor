@@ -13,7 +13,8 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
-from skilldoctor.model import ERROR, INFO, WARNING, Report
+from skilldoctor.budget import Budget
+from skilldoctor.model import ERROR, INFO, WARNING, Report, Skill, SlashCommand
 
 _SEVERITY_STYLE = {ERROR: "bold red", WARNING: "yellow", INFO: "dim cyan"}
 _SEVERITY_LABEL = {ERROR: "error", WARNING: "warn", INFO: "info"}
@@ -122,7 +123,14 @@ def _print_summary(report: Report, console: Console) -> None:
     console.print(f" {glyphs()['sep']} ".join(parts))
 
 
-def render_budget(skills, commands, used: int, limit, top: int, console: Console) -> None:
+def render_budget(
+    skills: list[Skill],
+    commands: list[SlashCommand],
+    used: int,
+    limit: Budget,
+    top: int,
+    console: Console,
+) -> None:
     """The `budget` view: the bar, where the number came from, and who is eating it.
 
     Lives here rather than in the CLI so the demo image in the README is produced
