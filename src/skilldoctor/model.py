@@ -42,6 +42,11 @@ class Skill:
     frontmatter: dict[str, Any] = field(default_factory=dict)
     body: str = ""
     yaml_error: str | None = None  # set when frontmatter YAML failed to parse
+    # What `skillOverrides` in settings says about this skill, and the per-entry
+    # truncation point in force. Both are set by the caller after reading settings;
+    # the defaults are what Claude Code does when nothing is configured.
+    listing_state: str = "on"
+    listing_cap: int | None = None
 
     @property
     def name(self) -> str:
@@ -68,15 +73,34 @@ class Skill:
         return f"{self.description}{self.when_to_use}"
 
     @property
+    def cap(self) -> int:
+        """The per-entry truncation point in force — `skillListingMaxDescChars` when
+        it is configured, otherwise Claude Code's default."""
+        return self.listing_cap or _budget.PER_ENTRY_CAP
+
+    @property
+    def listed_with_description(self) -> bool:
+        """Whether Claude sees this skill's description at all. `off` and
+        `user-invocable-only` hide it entirely; `name-only` lists just the name."""
+        return self.listing_state == "on"
+
+    @property
     def discovery_cost(self) -> int:
         """Characters this skill contributes to the shared listing budget.
 
-        Capped per entry: Claude Code truncates one entry's combined `description` +
-        `when_to_use` at `PER_ENTRY_CAP` regardless of the budget, so a 4,000-char
-        description does not cost 4,000 — it costs the cap. Counting the raw length
-        would overstate the total and send people trimming the wrong skill.
+        Three things make this less than the raw text, and getting any of them wrong
+        overstates the total and points people at the wrong skill to trim:
+
+        * `skillOverrides` — a skill set to `off` or `user-invocable-only` is not
+          listed to Claude and costs nothing; `name-only` costs just its name.
+        * The per-entry cap — a 4,000-character description costs the cap, because
+          the cap is all that gets listed.
         """
-        return len(self.name) + min(len(self.listing_text), _budget.PER_ENTRY_CAP)
+        if self.listing_state in ("off", "user-invocable-only"):
+            return 0
+        if self.listing_state == "name-only":
+            return len(self.name)
+        return len(self.name) + min(len(self.listing_text), self.cap)
 
 
 @dataclass

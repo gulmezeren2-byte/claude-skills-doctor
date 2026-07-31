@@ -105,13 +105,18 @@ def budget_limit(
         except (TypeError, ValueError):
             pass  # a malformed override falls through rather than crashing
 
-    used_fraction = fraction if fraction and fraction > 0 else DEFAULT_BUDGET_FRACTION
+    configured = fraction is not None and fraction > 0
+    used_fraction = fraction if configured and fraction else DEFAULT_BUDGET_FRACTION
     tokens = context_tokens if context_tokens and context_tokens > 0 else DEFAULT_CONTEXT_TOKENS
     chars = int(tokens * used_fraction * CHARS_PER_TOKEN)
     pct = used_fraction * 100
+    # say whether the share is the user's own setting or our default, so nobody has
+    # to wonder whether their skillListingBudgetFraction was picked up
+    whose = "your skillListingBudgetFraction" if configured else "the default"
     return Budget(
         chars,
-        f"{pct:g}% of a {tokens:,}-token context window, at ~{CHARS_PER_TOKEN} chars/token",
+        f"{pct:g}% ({whose}) of a {tokens:,}-token context window, "
+        f"at ~{CHARS_PER_TOKEN} chars/token",
         exact=False,
     )
 

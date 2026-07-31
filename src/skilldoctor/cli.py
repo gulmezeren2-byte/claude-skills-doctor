@@ -19,8 +19,10 @@ from rich.table import Table
 from skilldoctor import __version__
 from skilldoctor import budget as _budget
 from skilldoctor import report as _report
+from skilldoctor import settings as _settings
 from skilldoctor.checks import check_all
 from skilldoctor.discover import discover_commands, discover_skills
+from skilldoctor.model import Skill
 
 app = typer.Typer(
     add_completion=False,
@@ -44,8 +46,28 @@ def _use_utf8_output() -> None:
             reconfigure(encoding="utf-8", errors="replace")
 
 
-def _limit(override: int | None, context_tokens: int | None = None) -> _budget.Budget:
-    return _budget.budget_limit(override=override, context_tokens=context_tokens)
+def _apply_settings(
+    skills: list[Skill], settings: _settings.Settings
+) -> list[Skill]:
+    """Stamp each skill with what settings say about it, so the cost it reports is
+    the cost it actually has — a skill the user already set to `name-only` should
+    not be counted as though its description were still listed."""
+    for skill in skills:
+        skill.listing_state = settings.listing_state(skill.name)
+        skill.listing_cap = settings.max_desc_chars
+    return skills
+
+
+def _limit(
+    override: int | None,
+    context_tokens: int | None = None,
+    settings: _settings.Settings | None = None,
+) -> _budget.Budget:
+    return _budget.budget_limit(
+        override=override,
+        context_tokens=context_tokens,
+        fraction=settings.budget_fraction if settings else None,
+    )
 
 
 _CONTEXT_HELP = (
@@ -96,7 +118,11 @@ def main(
     try:
         found = discover_skills(home=home, project_root=project, extra_dirs=skills)
         commands = discover_commands(home=home, project_root=project)
-        report = check_all(found, commands, _limit(budget_override, context_window))
+        settings = _settings.load_settings(home=home, project_root=project)
+        _apply_settings(found, settings)
+        report = check_all(
+            found, commands, _limit(budget_override, context_window, settings)
+        )
     except Exception as exc:  # noqa: BLE001 - last resort: never dump a traceback
         # A consumer piping --json into a parser must always get JSON back, even
         # when something on disk defeats us.
@@ -137,7 +163,9 @@ def budget(
     project = project or Path.cwd()
     skills = discover_skills(home=home, project_root=project, extra_dirs=skills_dirs)
     commands = discover_commands(home=home, project_root=project)
-    limit = _limit(budget_override, context_window)
+    settings = _settings.load_settings(home=home, project_root=project)
+    _apply_settings(skills, settings)
+    limit = _limit(budget_override, context_window, settings)
     used = _budget.total_discovery_cost(skills, commands)
 
     console.print("[bold]Skill listing budget[/bold]")
@@ -152,16 +180,20 @@ def budget(
         )
     console.print()
 
-    items = [(s.name, "skill", s.discovery_cost) for s in skills]
-    items += [(c.name, "command", c.discovery_cost) for c in commands]
+    # carry the listing state so a 0-char row reads as "you hid this", not as a bug
+    items = [
+        (s.name, "skill", s.discovery_cost, s.listing_state) for s in skills
+    ]
+    items += [(c.name, "command", c.discovery_cost, "on") for c in commands]
     items.sort(key=lambda x: x[2], reverse=True)
 
     table = Table(show_header=True, header_style="bold")
     table.add_column("chars", justify="right")
     table.add_column("kind", style="dim")
     table.add_column("name", style="cyan")
-    for name, kind, cost in items[: max(1, top)]:
-        table.add_row(str(cost), kind, name)
+    table.add_column("listed", style="dim")
+    for name, kind, cost, state in items[: max(1, top)]:
+        table.add_row(str(cost), kind, name, "" if state == "on" else state)
     console.print(table)
     if len(items) > top:
         console.print(f"[dim]{_report.glyphs()['dots']} and {len(items) - top} more[/dim]")

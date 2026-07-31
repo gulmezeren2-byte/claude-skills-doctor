@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.7.0 — 2026-07-31
+
+0.6.0 got the budget model right but still assumed the defaults. Your actual
+configuration was sitting on disk the whole time, so now it gets read.
+
+- **`skillListingBudgetFraction` is honoured.** Someone who raised their own budget to
+  2% was being told they were over a limit they had already moved. The report names
+  the share *and* whether it came from your settings or our default, so there is no
+  guessing whether it was picked up.
+- **`skillOverrides` is honoured.** A skill set to `name-only` contributes only its
+  name; one set to `off` or `user-invocable-only` is not listed to Claude at all and
+  contributes nothing. Counting their descriptions anyway overstated the total and
+  raised an alarm about skills you had already dealt with. `skilldoctor budget` shows
+  the state next to any entry that isn't plain `on`, so a 4-character row reads as
+  "you hid this" rather than as a bug.
+- **`skillListingMaxDescChars` is honoured** as the per-entry cap, in both the
+  `description-capped` check and the cost calculation.
+- Settings are merged in documented precedence order — `~/.claude/settings.json`, then
+  `.claude/settings.json`, then `.claude/settings.local.json` (which is what the
+  `/skills` menu writes, so it has to win). A missing, unreadable or malformed
+  settings file is skipped rather than fatal, and a UTF-8 BOM does not hide it.
+- **Managed/enterprise settings are deliberately not read.** Their location is
+  platform-specific and not verified here, and reading the wrong file would be worse
+  than saying so.
+
+
 ## 0.6.0 — 2026-07-31
 
 The headline number was stale, and stale in the direction that matters: it said you

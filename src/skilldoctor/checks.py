@@ -370,8 +370,12 @@ def check_description_cap(skill: Skill) -> list[Finding]:
     an agent routes on the description rather than the body, losing the end of it is
     a behavioural change, not a cosmetic one.
     """
+    if not skill.listed_with_description:
+        # `name-only`, `user-invocable-only` and `off` never show a description, so
+        # there is nothing for the cap to cut and nothing to warn about
+        return []
     text = skill.listing_text
-    cap = _budget.PER_ENTRY_CAP
+    cap = skill.cap
     if len(text) <= cap:
         return []
     over = len(text) - cap

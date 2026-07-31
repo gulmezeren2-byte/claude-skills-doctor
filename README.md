@@ -29,7 +29,7 @@ Skill listing budget
 28 skill(s) · 6 command(s) · 2 error(s) · 2 warning(s)
 ```
 
-Pass `--context-window 1000000` for your actual model, or `--budget N` to pin it exactly. The tool always says which number it used and whether it was measured or derived.
+It reads your **actual settings** rather than assuming defaults — `skillListingBudgetFraction` (so raising your own budget is respected), `skillListingMaxDescChars`, and `skillOverrides` (a skill you already set to `name-only` costs its name, and one set to `off` costs nothing). Pass `--context-window 1000000` for your model, or `--budget N` to pin it exactly. The tool always says which number it used and whether it was measured or derived.
 
 ## Install
 
@@ -91,7 +91,7 @@ Nothing to install — the action fetches the tool for you. Set `json: true` and
 ```yaml
 - uses: gulmezeren2-byte/claude-skills-doctor@<commit-sha>
   with:
-    version: "0.6.0"
+    version: "0.7.0"
 ```
 
 `@v1` is a moving tag, and without `version` the tool resolves to the latest release, so an unpinned setup follows upstream. That's the usual trade-off: pinned is reproducible, unpinned gets fixes. The action pins its own dependency (`setup-uv`) by commit for the same reason. Releases are published to PyPI from CI with Trusted Publishing (OIDC) and carry attestations — there's no long-lived token to steal.
