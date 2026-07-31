@@ -14,7 +14,6 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
-from rich.table import Table
 
 from skilldoctor import __version__
 from skilldoctor import budget as _budget
