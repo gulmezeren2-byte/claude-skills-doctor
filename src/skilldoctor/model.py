@@ -16,6 +16,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from skilldoctor import budget as _budget
+
 # Severity levels, ordered worst-first for sorting.
 ERROR = "error"
 WARNING = "warning"
@@ -54,11 +56,27 @@ class Skill:
         return d if isinstance(d, str) else ""
 
     @property
+    def when_to_use(self) -> str:
+        """Appended to `description` in the listing, and counted against the same
+        per-entry cap — so for every budget purpose the two are one string."""
+        w = self.frontmatter.get("when_to_use")
+        return w if isinstance(w, str) else ""
+
+    @property
+    def listing_text(self) -> str:
+        """What the listing actually carries for this skill, before truncation."""
+        return f"{self.description}{self.when_to_use}"
+
+    @property
     def discovery_cost(self) -> int:
-        """Characters this skill contributes to the shared discovery budget — the
-        `name` + `description` are what Claude Code injects into the system prompt
-        at startup. An estimate (real budget adds minor formatting), but faithful."""
-        return len(self.name) + len(self.description)
+        """Characters this skill contributes to the shared listing budget.
+
+        Capped per entry: Claude Code truncates one entry's combined `description` +
+        `when_to_use` at `PER_ENTRY_CAP` regardless of the budget, so a 4,000-char
+        description does not cost 4,000 — it costs the cap. Counting the raw length
+        would overstate the total and send people trimming the wrong skill.
+        """
+        return len(self.name) + min(len(self.listing_text), _budget.PER_ENTRY_CAP)
 
 
 @dataclass
@@ -72,7 +90,7 @@ class SlashCommand:
 
     @property
     def discovery_cost(self) -> int:
-        return len(self.name) + len(self.description)
+        return len(self.name) + min(len(self.description), _budget.PER_ENTRY_CAP)
 
 
 @dataclass
@@ -108,6 +126,8 @@ class Report:
     commands_scanned: int = 0
     budget_used: int = 0
     budget_limit: int = 0
+    budget_source: str = ""
+    budget_exact: bool = True
 
     @property
     def errors(self) -> int:
@@ -150,6 +170,11 @@ class Report:
                 "used": self.budget_used,
                 "limit": self.budget_limit,
                 "over": self.over_budget,
+                # where the limit came from, and whether it is measured or derived —
+                # a consumer of this JSON deserves to know which it is looking at
+                "source": self.budget_source,
+                "exact": self.budget_exact,
+                "per_entry_cap": _budget.PER_ENTRY_CAP,
             },
             "findings": [f.to_dict() for f in self.sorted_findings()],
         }

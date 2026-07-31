@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from skilldoctor.budget import PER_ENTRY_CAP, budget_limit
 from skilldoctor.checks import (
     check_all,
     check_budget,
     check_collisions,
+    check_description_cap,
     check_duplicates,
     check_reference_chain,
     check_skill,
@@ -178,3 +180,49 @@ def test_check_all_coverage_counts() -> None:
     assert report.skills_scanned == 2
     assert report.errors >= 1  # the mismatch
     assert report.budget_used > 0
+
+
+# --------------------------------------------------------------------------- #
+# the per-entry cap — exact, model-independent, and applied whatever the budget
+#
+# Claude Code truncates one entry's combined description + when_to_use at 1,536
+# characters in the listing. Nothing warns you, and the text past the cut is text
+# Claude never sees when deciding whether the skill fits the request.
+# --------------------------------------------------------------------------- #
+def test_a_description_under_the_cap_is_fine() -> None:
+    s = make_skill("ok", description="x" * (PER_ENTRY_CAP - 1))
+    assert check_description_cap(s) == []
+
+
+def test_a_description_over_the_cap_is_reported() -> None:
+    s = make_skill("long", description="x" * (PER_ENTRY_CAP + 200))
+    findings = check_description_cap(s)
+    assert [f.check for f in findings] == ["description-capped"]
+    assert "200" in findings[0].message  # says exactly how much is lost
+
+
+def test_when_to_use_counts_toward_the_same_cap() -> None:
+    # neither field is over on its own; together they cross the line, which is
+    # precisely the case a per-field check would miss
+    s = make_skill("pair", description="x" * 1000)
+    s.frontmatter["when_to_use"] = "y" * 1000
+    findings = check_description_cap(s)
+    assert [f.check for f in findings] == ["description-capped"]
+    assert "when_to_use" in findings[0].message
+
+
+def test_the_cap_check_runs_on_plugin_skills_too() -> None:
+    # a plugin skill whose description is cut still costs you a skill Claude
+    # cannot match, so this one is not limited to the user's own skills
+    s = make_skill("vendor", description="x" * 3000, source=SOURCE_PLUGIN)
+    report = check_all([s], [], budget_limit(env={}))
+    assert any(f.check == "description-capped" for f in report.findings)
+
+
+def test_the_newer_frontmatter_keys_are_not_flagged() -> None:
+    # when_to_use / effort / paths are documented Claude Code frontmatter; a linter
+    # that calls them unexpected is drifting behind the platform it lints
+    s = make_skill("modern", description="Does a thing when asked.")
+    s.frontmatter.update({"when_to_use": "when asked", "effort": "low", "paths": ["src/"]})
+    findings = check_skill(s)
+    assert not [f for f in findings if f.check == "unexpected-frontmatter"]

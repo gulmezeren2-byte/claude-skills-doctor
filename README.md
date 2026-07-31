@@ -4,21 +4,32 @@
 
 > Install `claude-skills-doctor`, run `skilldoctor`.
 
-You install a skill, it looks perfect, and Claude never uses it. No error, no warning. As of Claude Code 2.0.70 the combined skill + slash-command descriptions injected into the system prompt live under a **15,000-character budget** (~4,000 tokens, set by `SLASH_COMMAND_TOOL_CHAR_BUDGET`). Go over and Claude Code **just stops listing some skills** — and Claude is told not to use skills it wasn't told about. The failure is invisible from the inside. `skilldoctor` makes it visible.
+You install a skill, it looks perfect, and Claude never uses it. No error, no warning.
+
+Claude Code loads a listing of skill names and descriptions into context so Claude knows what exists. The listing always keeps every skill **name** — but when it overflows, Claude Code **drops descriptions**, starting with the skills you invoke least. A skill with no description is a skill Claude has nothing to match your request against, so it quietly stops being chosen. Two limits squeeze that listing, and they fail differently:
+
+- **Per entry** — `description` + `when_to_use` is truncated at **1,536 characters**, regardless of budget. Exact, and the same on every model.
+- **Across the listing** — the total is **1% of your model's context window**, raised with `skillListingBudgetFraction` or pinned with `SLASH_COMMAND_TOOL_CHAR_BUDGET`.
+
+That second one is why a fixed number would mislead you: the same 11,000 characters of skills is comfortable on a 1M-token model and **37% over** on a 200K one.
 
 ```
 $ skilldoctor
-Discovery budget
-████████████████████████████░░░░  13,120 / 15,000 chars (87%)
+Skill listing budget
+████████████████████████████████  10,990 / 8,000 chars (137%)
+  budget from 1% of a 200,000-token context window, at ~4 chars/token (estimated)
+  ! over budget - names still list, but Claude Code drops descriptions to fit, least-used first
 
  severity   check                  target            detail
  error      name-folder-mismatch   pdf-tools         `name: pdf` must match the folder name `pdf-tools`
  error      frontmatter-invalid    my-skill          invalid YAML in frontmatter: mapping values are not allowed here
+ warn       description-capped     research          description + when_to_use is 1,904 chars — the listing truncates each entry at 1,536, so the last 368 chars never reach Claude.
  warn       description-collision  review-code       description ~72% overlaps `code-review` — they may compete to trigger
- warn       budget-near            budget            skills + commands use ~13,120/15,000 discovery chars (87%) — nearing the silent-truncation cliff.
 
 28 skill(s) · 6 command(s) · 2 error(s) · 2 warning(s)
 ```
+
+Pass `--context-window 1000000` for your actual model, or `--budget N` to pin it exactly. The tool always says which number it used and whether it was measured or derived.
 
 ## Install
 
@@ -50,7 +61,7 @@ It also ships as a Claude Code plugin, so the diagnosis lives where the problem 
 /plugin install skilldoctor@skilldoctor
 ```
 
-The plugin ships **one** skill and no slash command. A tool that measures the discovery budget shouldn't take two slots out of it.
+The plugin ships **one** skill and no slash command. A tool that measures the listing budget shouldn't take two slots out of it.
 
 ## Authoring skills? Lint what you ship
 
@@ -80,7 +91,7 @@ Nothing to install — the action fetches the tool for you. Set `json: true` and
 ```yaml
 - uses: gulmezeren2-byte/claude-skills-doctor@<commit-sha>
   with:
-    version: "0.5.0"
+    version: "0.6.0"
 ```
 
 `@v1` is a moving tag, and without `version` the tool resolves to the latest release, so an unpinned setup follows upstream. That's the usual trade-off: pinned is reproducible, unpinned gets fixes. The action pins its own dependency (`setup-uv`) by commit for the same reason. Releases are published to PyPI from CI with Trusted Publishing (OIDC) and carry attestations — there's no long-lived token to steal.
@@ -89,7 +100,8 @@ Nothing to install — the action fetches the tool for you. Set `json: true` and
 
 All deterministic. **No model calls, no network, no guessing** — it reads your files and reports.
 
-- **Discovery budget** — the headline. Total skill + command description characters vs the 15,000 limit (honours `SLASH_COMMAND_TOOL_CHAR_BUDGET`). Over budget → some skills are silently unlisted.
+- **Listing budget** — the headline. Total skill + command listing characters against 1% of your model's context window (or `SLASH_COMMAND_TOOL_CHAR_BUDGET` / `--budget`, which are exact). Over budget → descriptions get dropped, least-used first.
+- **Per-entry cap** — `description` + `when_to_use` over **1,536** characters is truncated in the listing whatever the budget. Exact, model-independent, and easy to cross without noticing.
 - **Won't load** — invalid YAML frontmatter (which *silently* prevents loading), missing `name`/`description`, and `name` that doesn't match its folder (required, and the one Anthropic's own validator misses).
 - **Won't route** — descriptions too thin to trigger, and descriptions written as a step-by-step how-to (which makes Claude follow the summary and skip loading the body).
 - **Collisions** — two skills with the same `name`, or near-identical descriptions that compete to trigger.
@@ -100,7 +112,7 @@ Errors make it exit non-zero, so it gates a pipeline: `skilldoctor && claude ...
 
 ## How it's different from a skill linter
 
-There are per-file `SKILL.md` linters and validators (and Anthropic's `skill-creator` model-evaluates **one** skill you're authoring). `claude-skills-doctor` is the complement: a **whole-system, install-time** health check across **every** skill you actually have — and the only one that measures the **cross-skill** failures a single-file linter structurally can't see: the shared discovery budget, duplicate names, and colliding descriptions. A linter checks a file; a doctor examines the whole patient.
+There are per-file `SKILL.md` linters and validators (and Anthropic's `skill-creator` model-evaluates **one** skill you're authoring). `claude-skills-doctor` is the complement: a **whole-system, install-time** health check across **every** skill you actually have — and the only one that measures the **cross-skill** failures a single-file linter structurally can't see: the shared listing budget, duplicate names, and colliding descriptions. A linter checks a file; a doctor examines the whole patient.
 
 ## Honest about the numbers
 
@@ -108,7 +120,7 @@ The budget is measured as each skill/command's `name` + `description` characters
 
 ## Related
 
-- **[mcp-contract](https://github.com/gulmezeren2-byte/mcp-contract)** — the same idea one layer down. `skilldoctor` watches the skills an agent can *see* — are they under the discovery budget, do their descriptions collide? `mcp-contract` watches the tools it *calls* — did a change to a server's tool surface quietly break the callers? Both treat the text an agent routes on as a contract worth testing.
+- **[mcp-contract](https://github.com/gulmezeren2-byte/mcp-contract)** — the same idea one layer down. `skilldoctor` watches the skills an agent can *see* — are they under the listing budget, do their descriptions collide? `mcp-contract` watches the tools it *calls* — did a change to a server's tool surface quietly break the callers? Both treat the text an agent routes on as a contract worth testing.
 
 More tools by [Eren Gülmez](https://github.com/gulmezeren2-byte?tab=repositories).
 

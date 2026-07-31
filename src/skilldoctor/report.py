@@ -56,13 +56,17 @@ def _budget_bar(used: int, limit: int) -> Text:
 def render(report: Report, console: Console | None = None, show_fixes: bool = False) -> None:
     console = console or Console()
 
-    console.print(Text("Discovery budget", style="bold"))
+    console.print(Text("Skill listing budget", style="bold"))
     console.print(_budget_bar(report.budget_used, report.budget_limit))
+    if report.budget_source:
+        # an estimate quoted like a measurement is how a reader trusts the wrong digit
+        suffix = "" if report.budget_exact else " (estimated)"
+        console.print(Text(f"  budget from {report.budget_source}{suffix}", style="dim"))
     if report.over_budget:
         console.print(
             Text(
-                f"  {glyphs()['warn']} over budget - Claude Code silently drops skills "
-                "past this line",
+                f"  {glyphs()['warn']} over budget - names still list, but Claude Code "
+                "drops descriptions to fit, least-used first",
                 style="red",
             )
         )

@@ -48,19 +48,34 @@ _NAME_RE = re.compile(r"^[a-z0-9-]+$")
 # plugin skills, which use `version`, `argument-hint`, and `model`. Kept generous
 # on purpose: the frontmatter schema is extensible, so an unknown key is a mild
 # smell (possible typo), not a spec violation.
+# Taken from the frontmatter reference table at code.claude.com/docs/en/skills
+# (re-checked 2026-07-31), plus the keys the agentskills.io standard and Anthropic's
+# own bundled plugin skills use, which the Claude Code table does not list.
 ALLOWED_FRONTMATTER = frozenset(
     {
+        # documented in the Claude Code frontmatter table
         "name",
         "description",
-        "license",
+        "when_to_use",
+        "argument-hint",
+        "arguments",
+        "disable-model-invocation",
+        "user-invocable",
         "allowed-tools",
+        "disallowed-tools",
+        "model",
+        "effort",
+        "context",
+        "agent",
+        "background",
+        "hooks",
+        "paths",
+        "shell",
+        # not in that table, but shipped by real skills in the wild
+        "license",
         "metadata",
         "compatibility",
-        "disable-model-invocation",
         "version",
-        "argument-hint",
-        "model",
-        "user-invocable",
     }
 )
 # The standard Claude Code tools, for the allowed-tools-vs-body contract check.
@@ -346,28 +361,70 @@ def check_reference_chain(skill: Skill) -> list[Finding]:
 # --------------------------------------------------------------------------- #
 # system-wide budget check
 # --------------------------------------------------------------------------- #
+def check_description_cap(skill: Skill) -> list[Finding]:
+    """The per-entry cap: exact, model-independent, and applied whatever the budget.
+
+    Claude Code truncates one entry's combined `description` + `when_to_use` at 1,536
+    characters in the listing. Nothing warns you. Everything past the cut is text
+    Claude never sees when deciding whether this skill fits the request — and since
+    an agent routes on the description rather than the body, losing the end of it is
+    a behavioural change, not a cosmetic one.
+    """
+    text = skill.listing_text
+    cap = _budget.PER_ENTRY_CAP
+    if len(text) <= cap:
+        return []
+    over = len(text) - cap
+    return [
+        Finding(
+            "description-capped", WARNING, skill.name,
+            f"description{' + when_to_use' if skill.when_to_use else ''} is "
+            f"{len(text)} chars — the listing truncates each entry at {cap}, so the "
+            f"last {over} chars never reach Claude.",
+            suggestion="Put the matching keywords first and move the detail into the "
+            "skill body, which loads only when the skill runs and costs nothing here.",
+        )
+    ]
+
+
 def check_budget(
-    skills: list[Skill], commands: list[SlashCommand], limit: int
+    skills: list[Skill], commands: list[SlashCommand], limit: _budget.Budget | int
 ) -> list[Finding]:
+    """The listing-wide budget.
+
+    Stated carefully, because describing this failure wrongly teaches the wrong fix:
+    the listing always keeps every skill *name*. What overflow drops is the
+    *description*, starting with the skills you invoke least — so a rarely-used skill
+    silently becomes a name with nothing for Claude to match on.
+    """
+    budget = limit if isinstance(limit, _budget.Budget) else _budget.Budget(
+        int(limit), "caller", exact=True
+    )
     used = _budget.total_discovery_cost(skills, commands)
-    if used > limit:
-        over = used - limit
+    # an estimated limit should not be quoted as though it were measured
+    how = f"{budget.chars}" if budget.exact else f"~{budget.chars} ({budget.source})"
+
+    if used > budget.chars:
+        over = used - budget.chars
         return [
             Finding(
                 "budget-exceeded", ERROR, "budget",
-                f"skills + commands use ~{used}/{limit} discovery chars — over by {over}. "
-                "Claude Code silently stops listing some skills (no warning). "
-                "Trim descriptions or raise SLASH_COMMAND_TOOL_CHAR_BUDGET.",
-                suggestion="Run `skilldoctor budget` to see the biggest contributors, trim "
-                f"~{over} chars of descriptions, or set SLASH_COMMAND_TOOL_CHAR_BUDGET.",
+                f"skills + commands use ~{used} listing chars against {how} — over by "
+                f"{over}. Names still list, but Claude Code drops descriptions to fit, "
+                "starting with the skills you invoke least, and does not warn in normal "
+                "use.",
+                suggestion="Run `skilldoctor budget` for the biggest contributors, trim "
+                f"~{over} chars, set low-priority entries to \"name-only\" in "
+                "skillOverrides, or raise skillListingBudgetFraction.",
             )
         ]
-    if used >= limit * _budget.WARN_RATIO:
+    if used >= budget.chars * _budget.WARN_RATIO:
         return [
             Finding(
                 "budget-near", WARNING, "budget",
-                f"skills + commands use ~{used}/{limit} discovery chars "
-                f"({int(used / limit * 100)}%) — nearing the silent-truncation cliff.",
+                f"skills + commands use ~{used} listing chars against {how} "
+                f"({int(used / budget.chars * 100)}%) — nearing the point where "
+                "descriptions start being dropped.",
             )
         ]
     return []
@@ -402,7 +459,7 @@ def _safe(
 def check_all(
     skills: list[Skill],
     commands: list[SlashCommand],
-    limit: int,
+    limit: _budget.Budget | int,
     include_info: bool = True,
 ) -> Report:
     findings: list[Finding] = []
@@ -412,6 +469,9 @@ def check_all(
         # security signals run on every skill — a dangerous third-party skill is
         # exactly the case worth flagging.
         findings.extend(_safe(s, scan_security))
+        # the per-entry cap applies to every listed skill, plugin or not: a plugin
+        # skill whose description is cut still costs you a skill Claude can't match
+        findings.extend(_safe(s, check_description_cap))
         if full:
             findings.extend(_safe(s, check_reference_chain))
     findings.extend(check_duplicates(skills))
@@ -425,5 +485,7 @@ def check_all(
         skills_scanned=len(skills),
         commands_scanned=len(commands),
         budget_used=_budget.total_discovery_cost(skills, commands),
-        budget_limit=limit,
+        budget_limit=int(limit),
+        budget_source=limit.source if isinstance(limit, _budget.Budget) else "",
+        budget_exact=limit.exact if isinstance(limit, _budget.Budget) else True,
     )

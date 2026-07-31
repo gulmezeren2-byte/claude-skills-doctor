@@ -22,7 +22,9 @@ def test_clean_exits_zero(home: Path, project: Path) -> None:
     write_skill(project, "pdf", f"name: pdf\ndescription: {GOOD}")
     result = runner.invoke(app, _args(home, project))
     assert result.exit_code == 0
-    assert "Discovery budget" in result.stdout
+    assert "Skill listing budget" in result.stdout
+    # the report must say whether the number is measured or derived
+    assert "budget from" in result.stdout
 
 
 def test_error_exits_nonzero(home: Path, project: Path) -> None:
@@ -36,7 +38,10 @@ def test_json_output(home: Path, project: Path) -> None:
     result = runner.invoke(app, _args(home, project, "--json"))
     data = json.loads(result.stdout)
     assert data["counts"]["skills"] == 1
-    assert data["budget"]["limit"] == 15000
+    # 1% of a 200k-token context window at ~4 chars/token — not a fixed 15,000
+    assert data["budget"]["limit"] == 8000
+    assert data["budget"]["exact"] is False
+    assert data["budget"]["per_entry_cap"] == 1536
     assert data["ok"] is True
 
 
@@ -93,7 +98,9 @@ def test_budget_subcommand(home: Path, project: Path) -> None:
     write_skill(project, "pdf", f"name: pdf\ndescription: {GOOD}")
     result = runner.invoke(app, ["budget", "--home", str(home), "--project", str(project)])
     assert result.exit_code == 0
-    assert "Discovery budget" in result.stdout
+    assert "Skill listing budget" in result.stdout
+    # the report must say whether the number is measured or derived
+    assert "budget from" in result.stdout
 
 
 def test_budget_override(home: Path, project: Path) -> None:

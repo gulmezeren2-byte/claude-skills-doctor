@@ -1,5 +1,45 @@
 # Changelog
 
+## 0.6.0 — 2026-07-31
+
+The headline number was stale, and stale in the direction that matters: it said you
+had room when you did not.
+
+- **The listing budget is 1% of your model's context window, not a fixed 15,000
+  characters.** Claude Code scales it with the model and exposes
+  `skillListingBudgetFraction` to raise it. Measured on the author's own machine, the
+  same 10,990 characters of skills reads as **73% (fine)** under the old fixed number,
+  **137% (over)** on a 200K-token model, and **27%** on a 1M one. A single number
+  could not have been right for all three, and the one we shipped was wrong for the
+  common case. `--context-window` states your model; `--budget` and
+  `SLASH_COMMAND_TOOL_CHAR_BUDGET` still pin it exactly.
+- **Every budget now says where it came from, and whether it is measured or
+  derived.** Turning a token budget into the character count we measure means one
+  assumption (~4 chars/token), and a tool about measurement honesty does not get to
+  hide its own estimate. `--json` carries `source` and `exact` alongside the number.
+- **New check `description-capped`.** `description` + `when_to_use` is truncated at
+  **1,536 characters per entry**, regardless of budget — exact, model-independent, and
+  entirely unchecked before. Everything past the cut is text Claude never sees when
+  deciding whether your skill fits the request.
+- **`when_to_use` counts.** It is appended to `description` in the listing, so it now
+  counts toward both the per-entry cap and the shared budget. Leaving it out
+  understated every skill that uses one.
+- **An over-long entry now costs the cap, not its full length.** A 4,000-character
+  description consumes 1,536 of the shared budget, because that is all that gets
+  listed. Counting it raw overstated the total and pointed people at the wrong skill.
+- **Corrected what overflow actually does.** Earlier versions said Claude Code "stops
+  listing some skills". It does not: the listing always keeps every skill *name*, and
+  what gets dropped is the *description*, starting with the skills you invoke least.
+  Same silent failure, different fix — and a tool that describes the failure wrongly
+  teaches the wrong remedy.
+- Frontmatter allowlist realigned with the current Claude Code reference table:
+  `when_to_use`, `effort`, `paths`, `hooks`, `agent`, `context`, `background`,
+  `arguments` and `disallowed-tools` are no longer reported as unexpected.
+
+All of the above verified against <https://code.claude.com/docs/en/skills> on
+2026-07-31 rather than inferred.
+
+
 ## 0.5.0 — 2026-07-28
 
 - **Ships a GitHub Action.** Checking your skills in CI is now three lines and
