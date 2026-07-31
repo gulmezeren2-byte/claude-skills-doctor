@@ -168,35 +168,7 @@ def budget(
     limit = _limit(budget_override, context_window, settings)
     used = _budget.total_discovery_cost(skills, commands)
 
-    console.print("[bold]Skill listing budget[/bold]")
-    console.print(_report._budget_bar(used, limit.chars))
-    # say where the number came from: an estimate quoted like a measurement is how
-    # a reader ends up trusting the wrong digit
-    console.print(f"[dim]budget from {limit.source}[/dim]")
-    if not limit.exact:
-        console.print(
-            "[dim]estimated — pass --context-window for your model, or --budget to "
-            "pin it exactly.[/dim]"
-        )
-    console.print()
-
-    # carry the listing state so a 0-char row reads as "you hid this", not as a bug
-    items = [
-        (s.name, "skill", s.discovery_cost, s.listing_state) for s in skills
-    ]
-    items += [(c.name, "command", c.discovery_cost, "on") for c in commands]
-    items.sort(key=lambda x: x[2], reverse=True)
-
-    table = Table(show_header=True, header_style="bold")
-    table.add_column("chars", justify="right")
-    table.add_column("kind", style="dim")
-    table.add_column("name", style="cyan")
-    table.add_column("listed", style="dim")
-    for name, kind, cost, state in items[: max(1, top)]:
-        table.add_row(str(cost), kind, name, "" if state == "on" else state)
-    console.print(table)
-    if len(items) > top:
-        console.print(f"[dim]{_report.glyphs()['dots']} and {len(items) - top} more[/dim]")
+    _report.render_budget(skills, commands, used, limit, top, console)
 
     raise typer.Exit(1 if used > limit.chars else 0)
 

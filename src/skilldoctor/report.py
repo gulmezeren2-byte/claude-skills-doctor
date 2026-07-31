@@ -120,3 +120,39 @@ def _print_summary(report: Report, console: Console) -> None:
     if report.ok and not report.warnings:
         parts.append("[green]all clear[/green]")
     console.print(f" {glyphs()['sep']} ".join(parts))
+
+
+def render_budget(skills, commands, used: int, limit, top: int, console: Console) -> None:
+    """The `budget` view: the bar, where the number came from, and who is eating it.
+
+    Lives here rather than in the CLI so the demo image in the README is produced
+    by the same code path the CLI prints — a screenshot that can drift from the
+    tool is worse than no screenshot.
+    """
+    console.print("[bold]Skill listing budget[/bold]")
+    console.print(_budget_bar(used, limit.chars))
+    # say where the number came from: an estimate quoted like a measurement is how
+    # a reader ends up trusting the wrong digit
+    console.print(f"[dim]budget from {limit.source}[/dim]")
+    if not limit.exact:
+        console.print(
+            "[dim]estimated — pass --context-window for your model, or --budget to "
+            "pin it exactly.[/dim]"
+        )
+    console.print()
+
+    # carry the listing state so a 0-char row reads as "you hid this", not as a bug
+    items = [(s.name, "skill", s.discovery_cost, s.listing_state) for s in skills]
+    items += [(c.name, "command", c.discovery_cost, "on") for c in commands]
+    items.sort(key=lambda x: x[2], reverse=True)
+
+    table = Table(show_header=True, header_style="bold")
+    table.add_column("chars", justify="right")
+    table.add_column("kind", style="dim")
+    table.add_column("name", style="cyan")
+    table.add_column("listed", style="dim")
+    for name, kind, cost, state in items[: max(1, top)]:
+        table.add_row(str(cost), kind, name, "" if state == "on" else state)
+    console.print(table)
+    if len(items) > top:
+        console.print(f"[dim]{glyphs()['dots']} and {len(items) - top} more[/dim]")
