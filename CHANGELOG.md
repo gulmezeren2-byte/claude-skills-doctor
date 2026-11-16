@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.0 — 2026-11-16
 
 - **Fixed: plugin skills were counted from folders Claude Code never loads (#1).**
   Discovery took every `SKILL.md` under `~/.claude/plugins/`, which also holds each
