@@ -44,6 +44,9 @@ class Settings:
     budget_fraction: float | None = None
     max_desc_chars: int | None = None
     skill_overrides: dict[str, str] = field(default_factory=dict)
+    # `enabledPlugins`: "<plugin>@<marketplace>" → on/off. A plugin with no entry
+    # falls back to its own `defaultEnabled` (true unless the plugin says otherwise).
+    enabled_plugins: dict[str, bool] = field(default_factory=dict)
     sources: tuple[Path, ...] = ()
 
     def listing_state(self, skill_name: str) -> str:
@@ -83,6 +86,7 @@ def load_settings(home: Path | None, project_root: Path | None) -> Settings:
     fraction: float | None = None
     max_chars: int | None = None
     overrides: dict[str, str] = {}
+    enabled: dict[str, bool] = {}
     read_from: list[Path] = []
 
     for path in settings_paths(home, project_root):
@@ -105,9 +109,16 @@ def load_settings(home: Path | None, project_root: Path | None) -> Settings:
                 if isinstance(name, str) and state in LISTING_STATES:
                     overrides[name] = state
 
+        raw_enabled = data.get("enabledPlugins")
+        if isinstance(raw_enabled, dict):
+            for key, on in raw_enabled.items():
+                if isinstance(key, str) and isinstance(on, bool):
+                    enabled[key] = on
+
     return Settings(
         budget_fraction=fraction,
         max_desc_chars=max_chars,
         skill_overrides=overrides,
+        enabled_plugins=enabled,
         sources=tuple(read_from),
     )

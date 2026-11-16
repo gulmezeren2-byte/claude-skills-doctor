@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed: plugin skills were counted from folders Claude Code never loads (#1).**
+  Discovery took every `SKILL.md` under `~/.claude/plugins/`, which also holds each
+  marketplace's catalog clone, earlier versions of installed plugins and plugins that
+  are switched off. So an installed plugin clashed with its own catalog entry, and the
+  more official plugins you installed, the more `duplicate-name` errors you got. On one
+  machine it reported 559 plugin skills and 155 `duplicate-name` errors; Claude Code
+  loaded 38, and there are now 38 and none. Plugin skills and commands now come only
+  from plugins that are installed (`installed_plugins.json`, at their `installPath`;
+  a project-scope install only in its own project) and enabled (`enabledPlugins` in
+  user, project or local settings, else the plugin's `defaultEnabled`). A plugin's
+  `skills` and `commands` manifest fields are followed. Plugins synced from a claude.ai
+  account (`plugins/synced/`) count as `<name>@synced`, the folder marked `.in_use`
+  where one name has several; that layout is observed on Claude Code 2.1.325, not
+  documented. Without `installed_plugins.json` (an older Claude Code) discovery falls
+  back to `plugins/cache/`, never the catalog.
+
 ## 0.7.0 — 2026-07-31
 
 0.6.0 got the budget model right but still assumed the defaults. Your actual
