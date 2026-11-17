@@ -48,6 +48,9 @@ class Skill:
     # the defaults are what Claude Code does when nothing is configured.
     listing_state: str = "on"
     listing_cap: int | None = None
+    # The plugin a plugin skill came from. Claude Code lists it as
+    # `<plugin>:<name>`, so its name only clashes with skills of the same plugin.
+    plugin_root: Path | None = None
 
     @property
     def name(self) -> str:
