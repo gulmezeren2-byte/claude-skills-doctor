@@ -46,7 +46,7 @@ skilldoctor --strict        # fail on warnings too
 skilldoctor budget          # the shareable view: the bar + the biggest contributors to trim
 ```
 
-It scans everywhere Claude Code loads from — your user skills (`~/.claude/skills`), the project's (`.claude/skills`), and installed plugins — plus slash-commands, which share the same budget.
+It scans everywhere Claude Code loads from — your user skills (`~/.claude/skills`), the project's (`.claude/skills`), installed plugins, and skills synced from your claude.ai account — plus slash-commands, which share the same budget.
 
 ## Or ask Claude
 

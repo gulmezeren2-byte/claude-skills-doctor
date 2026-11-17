@@ -9,7 +9,13 @@ import pytest
 
 from skilldoctor.checks import check_all, check_duplicates
 from skilldoctor.discover import discover_commands, discover_skills
-from skilldoctor.model import SOURCE_EXPLICIT, SOURCE_PLUGIN, SOURCE_PROJECT, SOURCE_USER
+from skilldoctor.model import (
+    SOURCE_EXPLICIT,
+    SOURCE_PLUGIN,
+    SOURCE_PROJECT,
+    SOURCE_SYNCED,
+    SOURCE_USER,
+)
 from tests.helpers import write_command, write_skill
 
 
@@ -247,3 +253,58 @@ def test_a_broken_registry_does_not_break_discovery(
     (plugins / "installed_plugins.json").write_text(registry, "utf-8")
     write_skill(home, "u1", "name: u1\ndescription: user skill one here")
     assert [s.name for s in discover_skills(home=home, project_root=project)] == ["u1"]
+
+
+def _synced(home: Path, folder: str, bucket: str = "acct") -> Path:
+    """A skill synced from a claude.ai account: ~/.claude/skills/synced/<bucket>/<name>/."""
+    d = home / ".claude" / "skills" / "synced" / bucket / folder
+    d.mkdir(parents=True, exist_ok=True)
+    p = d / "SKILL.md"
+    p.write_text(f"---\nname: {folder}\ndescription: a synced skill here\n---\nbody", "utf-8")
+    return p
+
+
+def _synced_names(home: Path, project: Path) -> list[str]:
+    return sorted(s.name for s in discover_skills(home=home, project_root=project)
+                  if s.source == SOURCE_SYNCED)
+
+
+def test_skills_synced_from_claude_ai_are_discovered(home: Path, project: Path) -> None:
+    # they sit two levels below ~/.claude/skills, so the user glob never saw them
+    _synced(home, "pdf")
+    _synced(home, "docx")
+    write_skill(home, "u1", "name: u1\ndescription: user skill one here")
+    assert _synced_names(home, project) == ["docx", "pdf"]
+    assert {s.source for s in discover_skills(home=home, project_root=project)} == {
+        SOURCE_USER, SOURCE_SYNCED,
+    }
+
+
+def test_synced_skills_skip_hidden_folders(home: Path, project: Path) -> None:
+    # a sync in progress writes to hidden folders; only finished skills load
+    _synced(home, "pdf")
+    _synced(home, ".staging")
+    _synced(home, "old", bucket=".trash")
+    assert _synced_names(home, project) == ["pdf"]
+
+
+def test_synced_skills_are_not_counted_when_sync_is_off(home: Path, project: Path) -> None:
+    _synced(home, "pdf")
+    (home / ".claude" / "settings.json").write_text(
+        json.dumps({"syncClaudeAiSkills": False}), "utf-8"
+    )
+    assert _synced_names(home, project) == []
+
+
+def test_synced_skills_count_but_never_clash_by_name(home: Path, project: Path) -> None:
+    # a synced skill is listed as anthropic-skills:<name>, so a same-named user or
+    # plugin skill sits beside it rather than competing with it
+    write_skill(home, "pdf", "name: pdf\ndescription: my own pdf skill here")
+    _synced(home, "pdf")
+    _plugin_skill(home, "skill-creator", "skill-creator")
+    _synced(home, "skill-creator")
+    skills = discover_skills(home=home, project_root=project)
+    assert len(skills) == 4
+    report = check_all(skills, [], 15000)
+    assert "duplicate-name" not in {f.check for f in report.findings}
+    assert report.budget_used == sum(s.discovery_cost for s in skills)

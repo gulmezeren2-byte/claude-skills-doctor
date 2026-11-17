@@ -14,7 +14,7 @@ from skilldoctor.checks import (
     check_reference_chain,
     check_skill,
 )
-from skilldoctor.model import ERROR, INFO, SOURCE_PLUGIN, WARNING, Skill
+from skilldoctor.model import ERROR, INFO, SOURCE_PLUGIN, SOURCE_SYNCED, WARNING, Skill
 from skilldoctor.parse import load_skill
 from tests.helpers import make_skill, write_skill
 
@@ -122,6 +122,17 @@ def test_check_all_scopes_plugin_skills() -> None:
     user_checks = {f.check for f in check_all([user], [], 15000).findings}
     assert "name-folder-mismatch" not in plugin_checks
     assert "name-folder-mismatch" in user_checks
+
+
+def test_check_all_scopes_synced_skills_like_plugins() -> None:
+    # a skill synced from claude.ai is edited there, not on disk: load-breakers only,
+    # and it never takes part in a routing collision the user is asked to fix
+    d = "Review the code changes carefully and report bugs, issues, and risky edits found"
+    synced = make_skill("folder", name="different-name", description=d, source=SOURCE_SYNCED)
+    user = make_skill("mine", description=d)
+    checks = {f.check for f in check_all([synced, user], [], 15000).findings}
+    assert "name-folder-mismatch" not in checks
+    assert "description-collision" not in checks
 
 
 def test_human_docs_on_disk(tmp_path: Path) -> None:

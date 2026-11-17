@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed: skills synced from a claude.ai account were never counted.** Claude Code
+  downloads them into `~/.claude/skills/synced/` and lists them to Claude as
+  `anthropic-skills:<name>`, but they sit one folder per account below that
+  (`synced/<bucket>/<name>/SKILL.md`, observed on Claude Code 2.1.325), so the user
+  scan never reached them and the budget came out low. On one machine that was 23
+  skills and 12,998 characters of listing left out. They now count toward the budget
+  and the per-entry cap, and get the same load-breaker and security checks as plugin
+  skills. They are edited on claude.ai, not on disk, so they are not linted for
+  style, and never reported as a `duplicate-name` or a description collision: a
+  same-named skill sits beside `anthropic-skills:<name>` rather than clashing with
+  it. Hidden folders (syncs in progress) are skipped. With `syncClaudeAiSkills: false`
+  they are not counted; that they stop loading then is inferred from the setting,
+  not observed.
+
 ## 0.8.0 — 2026-11-16
 
 - **Fixed: plugin skills were counted from folders Claude Code never loads (#1).**
