@@ -87,7 +87,7 @@ Nothing to install — the action fetches the tool for you. Set `json: true` and
 ```yaml
 - uses: gulmezeren2-byte/claude-skills-doctor@<commit-sha>
   with:
-    version: "0.8.0"
+    version: "0.8.1"
 ```
 
 `@v1` is a moving tag, and without `version` the tool resolves to the latest release, so an unpinned setup follows upstream. That's the usual trade-off: pinned is reproducible, unpinned gets fixes. The action pins its own dependency (`setup-uv`) by commit for the same reason. Releases are published to PyPI from CI with Trusted Publishing (OIDC) and carry attestations — there's no long-lived token to steal.
