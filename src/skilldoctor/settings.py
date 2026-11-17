@@ -47,6 +47,8 @@ class Settings:
     # `enabledPlugins`: "<plugin>@<marketplace>" → on/off. A plugin with no entry
     # falls back to its own `defaultEnabled` (true unless the plugin says otherwise).
     enabled_plugins: dict[str, bool] = field(default_factory=dict)
+    # `syncClaudeAiSkills: false` opts out of skills synced from a claude.ai account.
+    sync_claude_ai_skills: bool = True
     sources: tuple[Path, ...] = ()
 
     def listing_state(self, skill_name: str) -> str:
@@ -87,6 +89,7 @@ def load_settings(home: Path | None, project_root: Path | None) -> Settings:
     max_chars: int | None = None
     overrides: dict[str, str] = {}
     enabled: dict[str, bool] = {}
+    sync_skills = True
     read_from: list[Path] = []
 
     for path in settings_paths(home, project_root):
@@ -115,10 +118,15 @@ def load_settings(home: Path | None, project_root: Path | None) -> Settings:
                 if isinstance(key, str) and isinstance(on, bool):
                     enabled[key] = on
 
+        raw_sync = data.get("syncClaudeAiSkills")
+        if isinstance(raw_sync, bool):
+            sync_skills = raw_sync
+
     return Settings(
         budget_fraction=fraction,
         max_desc_chars=max_chars,
         skill_overrides=overrides,
         enabled_plugins=enabled,
+        sync_claude_ai_skills=sync_skills,
         sources=tuple(read_from),
     )

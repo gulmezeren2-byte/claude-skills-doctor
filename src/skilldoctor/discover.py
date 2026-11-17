@@ -5,6 +5,8 @@ Locations mirror what Claude Code actually reads (verified on disk):
   * project skills   <root>/.claude/skills/<name>/SKILL.md
   * plugin skills    <plugin>/skills/<name>/SKILL.md, for each plugin that is
                      installed and enabled (see `plugin_roots`)
+  * synced skills    ~/.claude/skills/synced/<bucket>/<name>/SKILL.md, the skills
+                     enabled on a claude.ai account (see `synced_skill_files`)
   * commands         ~/.claude/commands/**.md, <root>/.claude/commands/**.md,
                      and <plugin>/commands/**.md for the same plugins
 
@@ -23,6 +25,7 @@ from skilldoctor.model import (
     SOURCE_EXPLICIT,
     SOURCE_PLUGIN,
     SOURCE_PROJECT,
+    SOURCE_SYNCED,
     SOURCE_USER,
     Skill,
     SlashCommand,
@@ -141,13 +144,33 @@ def _plugin_command_files(root: Path) -> list[Path]:
     return sorted(out)
 
 
+def synced_skill_files(home: Path, project_root: Path) -> list[Path]:
+    """Skills synced from a claude.ai account, unless `syncClaudeAiSkills` is off.
+
+    Claude Code downloads them into `~/.claude/skills/synced/` (documented), one
+    folder per account and then one per skill: `synced/<bucket>/<name>/SKILL.md`
+    (that inner layout is observed on Claude Code 2.1.325). They sit two levels
+    below the user skills folder, so the user scan never reached them. Hidden
+    folders hold syncs in progress and are skipped."""
+    if not load_settings(home, project_root).sync_claude_ai_skills:
+        return []
+    synced = home / ".claude" / "skills" / "synced"
+    if not synced.is_dir():
+        return []
+    return sorted(
+        p for p in synced.glob("*/*/SKILL.md")
+        if not p.parent.name.startswith(".") and not p.parent.parent.name.startswith(".")
+    )
+
+
 def discover_skills(
     home: Path | None = None,
     project_root: Path | None = None,
     extra_dirs: Sequence[Path] | None = None,
 ) -> list[Skill]:
     """All skills, de-duplicated by resolved path (so project == home doesn't
-    double-count). Order: explicit `--skills` dirs, then user, project, plugins.
+    double-count). Order: explicit `--skills` dirs, then user, project, plugins,
+    synced.
 
     `extra_dirs` are skills roots you name yourself — a plugin repo's `skills/`
     folder, say. They are checked first and in full, because they are the ones you
@@ -192,6 +215,9 @@ def discover_skills(
     for root in plugin_roots(home, project_root):
         for p in _plugin_skill_files(root):
             add(p, SOURCE_PLUGIN)
+
+    for p in synced_skill_files(home, project_root):
+        add(p, SOURCE_SYNCED)
 
     return found
 

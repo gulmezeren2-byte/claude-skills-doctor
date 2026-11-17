@@ -25,6 +25,7 @@ from skilldoctor.model import (
     ERROR,
     INFO,
     SOURCE_PLUGIN,
+    SOURCE_SYNCED,
     WARNING,
     Finding,
     Report,
@@ -467,8 +468,11 @@ def check_all(
     include_info: bool = True,
 ) -> Report:
     findings: list[Finding] = []
+    # Plugin skills and skills synced from claude.ai are not the user's to edit on
+    # disk (a synced one is changed on claude.ai), so they get load-breakers only.
+    own = [s for s in skills if s.source not in (SOURCE_PLUGIN, SOURCE_SYNCED)]
     for s in skills:
-        full = s.source != SOURCE_PLUGIN
+        full = s.source not in (SOURCE_PLUGIN, SOURCE_SYNCED)
         findings.extend(_safe(s, check_skill, full))
         # security signals run on every skill — a dangerous third-party skill is
         # exactly the case worth flagging.
@@ -478,9 +482,11 @@ def check_all(
         findings.extend(_safe(s, check_description_cap))
         if full:
             findings.extend(_safe(s, check_reference_chain))
-    findings.extend(check_duplicates(skills))
+    # A synced skill is listed as `anthropic-skills:<name>`, so a same-named skill
+    # sits beside it instead of clashing with it.
+    findings.extend(check_duplicates([s for s in skills if s.source != SOURCE_SYNCED]))
     # Routing collisions are only actionable among the user's own skills.
-    findings.extend(check_collisions([s for s in skills if s.source != SOURCE_PLUGIN]))
+    findings.extend(check_collisions(own))
     findings.extend(check_budget(skills, commands, limit))
     if not include_info:
         findings = [f for f in findings if f.severity != INFO]
