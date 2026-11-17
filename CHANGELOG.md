@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.2 — 2026-11-17
 
 - **Fixed: a plugin skill was reported as a `duplicate-name` of a skill it sits
   beside.** Claude Code lists plugin skills as `<plugin>:<name>`, so they cannot clash
