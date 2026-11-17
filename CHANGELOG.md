@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.1 — 2026-11-17
 
 - **Fixed: skills synced from a claude.ai account were never counted.** Claude Code
   downloads them into `~/.claude/skills/synced/` and lists them to Claude as
