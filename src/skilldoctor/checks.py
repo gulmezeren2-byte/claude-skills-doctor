@@ -291,14 +291,18 @@ def _check_allowed_tools(skill: Skill) -> list[Finding]:
 # cross-skill checks
 # --------------------------------------------------------------------------- #
 def check_duplicates(skills: list[Skill]) -> list[Finding]:
-    """Two skills with the same `name` — an ambiguous, order-dependent clash."""
-    by_name: dict[str, list[Skill]] = defaultdict(list)
+    """Two skills with the same `name` — an ambiguous, order-dependent clash.
+
+    A plugin skill is listed as `<plugin>:<name>`, so it sits beside a same-named
+    user or project skill, or one from another plugin, rather than clashing with
+    it. Names are compared within each plugin and among the rest."""
+    by_name: dict[tuple[str, str], list[Skill]] = defaultdict(list)
     for s in skills:
         n = s.frontmatter.get("name")
         if isinstance(n, str) and n.strip():
-            by_name[n.strip()].append(s)
+            by_name[(str(s.plugin_root or ""), n.strip())].append(s)
     out: list[Finding] = []
-    for name, group in sorted(by_name.items()):
+    for (_, name), group in sorted(by_name.items()):
         if len(group) > 1:
             where = ", ".join(sorted(f"{s.source}:{s.folder_name}" for s in group))
             out.append(

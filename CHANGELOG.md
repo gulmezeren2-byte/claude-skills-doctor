@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed: a plugin skill was reported as a `duplicate-name` of a skill it sits
+  beside.** Claude Code lists plugin skills as `<plugin>:<name>`, so they cannot clash
+  with a user or project skill, or with a skill from another plugin. Installing both
+  the discord and telegram plugins, which each ship `access` and `configure`, gave
+  two `duplicate-name` errors; it now gives none. Names are still compared within
+  each plugin, and user and project skills are still compared with each other.
+
 ## 0.8.1 — 2026-11-17
 
 - **Fixed: skills synced from a claude.ai account were never counted.** Claude Code

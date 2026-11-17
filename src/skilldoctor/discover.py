@@ -182,7 +182,7 @@ def discover_skills(
     found: list[Skill] = []
     seen: set[Path] = set()
 
-    def add(path: Path, source: str) -> None:
+    def add(path: Path, source: str, plugin_root: Path | None = None) -> None:
         try:
             key = path.resolve()
         except OSError:
@@ -190,7 +190,9 @@ def discover_skills(
         if key in seen:
             return
         seen.add(key)
-        found.append(load_skill(path, source))
+        skill = load_skill(path, source)
+        skill.plugin_root = plugin_root
+        found.append(skill)
 
     for extra in extra_dirs or ():
         extra = Path(extra)
@@ -214,7 +216,7 @@ def discover_skills(
 
     for root in plugin_roots(home, project_root):
         for p in _plugin_skill_files(root):
-            add(p, SOURCE_PLUGIN)
+            add(p, SOURCE_PLUGIN, root)
 
     for p in synced_skill_files(home, project_root):
         add(p, SOURCE_SYNCED)

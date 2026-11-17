@@ -308,3 +308,43 @@ def test_synced_skills_count_but_never_clash_by_name(home: Path, project: Path) 
     report = check_all(skills, [], 15000)
     assert "duplicate-name" not in {f.check for f in report.findings}
     assert report.budget_used == sum(s.discovery_cost for s in skills)
+
+
+def _dup_names(home: Path, project: Path) -> list[str]:
+    skills = discover_skills(home=home, project_root=project)
+    return sorted(f.target for f in check_duplicates(skills))
+
+
+def test_a_plugin_skill_does_not_clash_with_a_user_skill(home: Path, project: Path) -> None:
+    # Claude Code lists the plugin one as `tools:deploy`, beside the user's `deploy`
+    write_skill(home, "deploy", "name: deploy\ndescription: my own deploy skill here")
+    _plugin_skill(home, "tools", "deploy")
+    assert _dup_names(home, project) == []
+
+
+def test_two_plugins_may_share_a_skill_name(home: Path, project: Path) -> None:
+    # discord and telegram each ship `access` and `configure` (issue #1)
+    for plugin in ("discord", "telegram"):
+        root = _install(home, plugin)
+        _skill_in(root, "access")
+        _skill_in(root, "configure")
+    assert _dup_names(home, project) == []
+
+
+def test_a_name_used_twice_inside_one_plugin_still_clashes(home: Path, project: Path) -> None:
+    root = _install(home, "custom")
+    _skill_in(root, "deploy")
+    extra = _skill_in(root / "more", "deploy-again")
+    extra.write_text("---\nname: deploy\ndescription: a second deploy here\n---\nbody", "utf-8")
+    (root / ".claude-plugin").mkdir()
+    manifest = root / ".claude-plugin" / "plugin.json"
+    manifest.write_text(json.dumps({"skills": "./more/skills/"}))
+    assert _dup_names(home, project) == ["deploy"]
+
+
+def test_a_user_and_a_project_skill_with_one_name_still_clash(
+    home: Path, project: Path
+) -> None:
+    write_skill(home, "deploy", "name: deploy\ndescription: my own deploy skill here")
+    write_skill(project, "deploy", "name: deploy\ndescription: the project deploy here")
+    assert _dup_names(home, project) == ["deploy"]
